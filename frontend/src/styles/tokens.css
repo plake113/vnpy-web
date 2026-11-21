@@ -1,0 +1,222 @@
+/**
+ * 设计令牌：唯一视觉来源。
+ *
+ * 三层结构：
+ *
+ * 1. 原始层：色阶、字号 / 间距 / 圆角 / 动效 / 外壳尺寸；
+ * 2. 语义层：surface / border / text / accent / status / elevation，按 data-theme 切换；
+ * 3. 交易语义层：price / depth / fill，按 data-price-scheme 切换，深色下单独提亮。
+ *
+ * 约定：页面与组件只引用语义令牌（var(--surface-...) 等），不写十六进制 / rgb 字面量；
+ * 需要新颜色时先在这里补令牌，再在组件里引用。
+ *
+ * `html[data-theme]` 与 `html[data-price-scheme]` 由外壳在首帧前写入；
+ * 重建外壳时两处逻辑必须一致。
+ */
+
+:root {
+  /* ---------------------------------------------------------- 原始色阶 · 中性 */
+  --n-00: #fff;
+  --n-50: #f9fafb;
+  --n-60: #f5f6f7;
+  --n-75: #f1f3f5;
+  --n-100: #ebeff2;
+  --n-150: #e9ecf2;
+  --n-200: #e1e5ee;
+  --n-300: #cfd3d6;
+  --n-400: #adb2b8;
+  --n-600: #81858c;
+  --n-700: #61666b;
+  --n-750: #43454a;
+  --n-800: #353638;
+  --n-850: #2c2c2e;
+  --n-900: #1b1b1c;
+  --n-950: #151517;
+  --n-1000: #0f1115;
+
+  /* ---------------------------------------------------------- 原始色阶 · 品牌蓝 */
+  --blue-50: #edf3fe;
+  --blue-100: #e4edfd;
+  --blue-300: #b7c8fe;
+  --blue-450: #5686fe;
+  --blue-500: #3964fe;
+
+  /* ---------------------------------------------------------- 原始色阶 · 语义色 */
+  --green-300: #86efac;
+  --green-400: #3ddc97;
+  --green-450: #16a06f;
+  --green-500: #22c55e;
+  --green-600: #12a150;
+  --red-300: #fca5a5;
+  --red-350: #ff6b6b;
+  --red-400: #f25a5a;
+  --red-500: #e04b4b;
+  --red-600: #d64545;
+  --amber-300: #fcd34d;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --amber-600: #dd8629;
+
+  /* ---------------------------------------------------------- 尺寸与外壳 */
+  --h-xs: 28px;
+  --h-s: 32px;
+  --h-m: 36px;
+  --h-l: 40px;
+  --h-xl: 44px;
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+  --rail-w: 240px;
+  --rail-w-collapsed: 64px;
+  --drawer-w: 280px;
+  --topbar-h: 52px;
+
+  /* ---------------------------------------------------------- 字形与动效 */
+  --font-sans:
+    system-ui, -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --safe-t: 0px;
+  --safe-b: 0px;
+
+  /* ---------------------------------------------------------- 语义层 · 浅色（默认） */
+  color-scheme: light;
+  --surface-canvas: var(--n-00);
+  --surface-sunken: var(--n-50);
+  --surface-raised: var(--n-00);
+  --surface-raised-2: var(--n-75);
+  --surface-hover: rgb(38 49 72 / 6%);
+  --surface-active: rgb(38 49 72 / 9%);
+  --surface-scrim: rgb(16 24 40 / 32%);
+  --surface-inverse: var(--n-800);
+  --text-inverse: var(--n-50);
+  --border-subtle: rgb(0 0 0 / 6%);
+  --border-strong: rgb(0 0 0 / 10%);
+  --border-hairline: rgb(0 0 0 / 5%);
+  --text-primary: var(--n-1000);
+  --text-secondary: var(--n-700);
+  --text-muted: var(--n-600);
+  --text-faint: var(--n-400);
+  --accent: var(--blue-500);
+  --accent-soft: var(--blue-50);
+  --text-on-accent: var(--n-00);
+  --control-track: var(--n-300);
+  --control-thumb: var(--n-00);
+  --elev-thumb: 0 1px 2px rgb(0 0 0 / 18%);
+  --grid-line: rgb(15 17 21 / 5%);
+  --elev-card: 0 1px 2px rgb(0 0 0 / 3%);
+  --elev-sheet: 0 -8px 40px rgb(0 0 0 / 12%);
+  --elev-drawer: 8px 0 32px rgb(16 24 40 / 14%);
+  --status-success: var(--green-600);
+  --status-success-soft: rgb(18 161 80 / 12%);
+  --status-warning: var(--amber-600);
+  --status-warning-soft: rgb(221 134 41 / 14%);
+  --status-danger: var(--red-600);
+  --status-danger-soft: rgb(214 69 69 / 12%);
+  --status-info: var(--blue-500);
+  --status-info-soft: rgb(57 100 254 / 8%);
+
+  /* ---------------------------------------------------------- 交易语义 · 默认红涨绿跌 */
+  --price-up: var(--red-600);
+  --price-down: var(--green-600);
+  --price-up-soft: rgb(214 69 69 / 10%);
+  --price-down-soft: rgb(18 161 80 / 10%);
+  --depth-up: rgb(214 69 69 / 7%);
+  --depth-down: rgb(18 161 80 / 7%);
+  --fill-up: var(--red-600);
+  --fill-down: var(--green-600);
+  /* 图表成交量柱：比价格实色更淡，避免盖过 K 线实体。 */
+  --volume-up: rgb(214 69 69 / 42%);
+  --volume-down: rgb(18 161 80 / 42%);
+}
+
+/* ------------------------------------------------------------ 语义层 · 深色 */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --surface-canvas: var(--n-950);
+  --surface-sunken: var(--n-900);
+  --surface-raised: var(--n-850);
+  --surface-raised-2: var(--n-800);
+  --surface-hover: rgb(255 255 255 / 8%);
+  --surface-active: rgb(255 255 255 / 11%);
+  --surface-scrim: rgb(0 0 0 / 60%);
+  --surface-inverse: var(--n-100);
+  --text-inverse: var(--n-1000);
+  --border-subtle: rgb(255 255 255 / 6%);
+  --border-strong: rgb(255 255 255 / 12%);
+  --border-hairline: rgb(255 255 255 / 5%);
+  --text-primary: var(--n-50);
+  --text-secondary: var(--n-300);
+  --text-muted: var(--n-400);
+  --text-faint: var(--n-600);
+  --accent: var(--blue-450);
+  --accent-soft: rgb(86 134 254 / 16%);
+  --text-on-accent: var(--n-00);
+  --control-track: var(--n-750);
+  --control-thumb: var(--n-00);
+  --elev-thumb: 0 1px 2px rgb(0 0 0 / 40%);
+  --grid-line: rgb(255 255 255 / 5%);
+  --elev-card: none;
+  --elev-sheet: 0 -8px 40px rgb(0 0 0 / 40%);
+  --elev-drawer: 8px 0 32px rgb(0 0 0 / 50%);
+  --status-success: var(--green-400);
+  --status-success-soft: rgb(61 220 151 / 14%);
+  --status-warning: var(--amber-400);
+  --status-warning-soft: rgb(251 191 36 / 16%);
+  --status-danger: var(--red-400);
+  --status-danger-soft: rgb(242 90 90 / 16%);
+  --status-info: var(--blue-300);
+  --status-info-soft: rgb(183 200 254 / 14%);
+}
+
+/* ------------------------------------------------------------ 交易语义 · 涨跌配色 */
+[data-price-scheme='intl'] {
+  --price-up: var(--green-600);
+  --price-down: var(--red-600);
+  --price-up-soft: rgb(18 161 80 / 10%);
+  --price-down-soft: rgb(214 69 69 / 10%);
+  --depth-up: rgb(18 161 80 / 7%);
+  --depth-down: rgb(214 69 69 / 7%);
+  --fill-up: var(--green-600);
+  --fill-down: var(--red-600);
+  --volume-up: rgb(18 161 80 / 42%);
+  --volume-down: rgb(214 69 69 / 42%);
+}
+
+[data-theme='dark'][data-price-scheme='cn'] {
+  --price-up: var(--red-350);
+  --price-down: var(--green-400);
+  --price-up-soft: rgb(255 107 107 / 12%);
+  --price-down-soft: rgb(61 220 151 / 12%);
+  --depth-up: rgb(255 107 107 / 10%);
+  --depth-down: rgb(61 220 151 / 10%);
+  --fill-up: var(--red-500);
+  --fill-down: var(--green-450);
+  --volume-up: rgb(255 107 107 / 46%);
+  --volume-down: rgb(61 220 151 / 46%);
+}
+
+[data-theme='dark'][data-price-scheme='intl'] {
+  --price-up: var(--green-400);
+  --price-down: var(--red-350);
+  --price-up-soft: rgb(61 220 151 / 12%);
+  --price-down-soft: rgb(255 107 107 / 12%);
+  --depth-up: rgb(61 220 151 / 10%);
+  --depth-down: rgb(255 107 107 / 10%);
+  --fill-up: var(--green-450);
+  --fill-down: var(--red-500);
+  --volume-up: rgb(61 220 151 / 46%);
+  --volume-down: rgb(255 107 107 / 46%);
+}
+
+/* 安全区只在类原生显示模式生效：普通标签页里浏览器已经让出了工具栏。 */
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  :root {
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+}

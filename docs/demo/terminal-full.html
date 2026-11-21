@@ -1,0 +1,1599 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-price-scheme="cn">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>vnpy Web · 交易终端（合并版）</title>
+<style>
+/* ============================================================
+   完整版 = v3 应用外壳 + v2 交易终端页
+   - 桌面 ≥900：侧栏 + 报价条 + 图表 + 盘口 + 下单栏 + 底部委托区
+   - 移动 <900：侧栏 → 抽屉；托盘 → 底部 tab；下单 → 底部抽屉
+   - 视觉令牌沿用 chat-demo（浅色默认、蓝调中性、胶囊按钮）
+   ============================================================ */
+
+:root {
+  --n-00:#fff; --n-50:#f9fafb; --n-60:#f5f6f7; --n-75:#f1f3f5;
+  --n-100:#ebeff2; --n-150:#e9ecf2; --n-200:#e1e5ee; --n-300:#cfd3d6;
+  --n-400:#adb2b8; --n-600:#81858c; --n-700:#61666b; --n-750:#43454a;
+  --n-800:#353638; --n-850:#2c2c2e; --n-900:#1b1b1c; --n-950:#151517; --n-1000:#0f1115;
+  --blue-50:#edf3fe; --blue-100:#e4edfd; --blue-300:#b7c8fe; --blue-450:#5686fe;
+  --blue-500:#3964fe; --green-500:#22c55e; --green-600:#12a150;
+  --red-400:#f25a5a; --red-600:#d64545; --amber-500:#f59e0b; --amber-600:#dd8629;
+
+  --h-xs:28px; --h-s:32px; --h-m:36px; --h-l:40px; --h-xl:44px;
+  --r-xs:8px; --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:24px; --r-pill:999px;
+  --dur:180ms; --ease:cubic-bezier(.4,0,.2,1);
+
+  --rail-w:240px; --rail-w-collapsed:64px;
+  --topbar-h:52px;
+
+  --font-sans: system-ui, -apple-system, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  /* 安全区只在类原生显示模式生效：普通标签页里浏览器已经让出了工具栏，
+     再叠加 env() 会把顶栏/底栏撑高（vivo 浏览器会把自身工具栏高度报成 inset-top） */
+  --safe-b: 0px;
+  --safe-t: 0px;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --surface-canvas:#fff; --surface-sunken:var(--n-50); --surface-raised:#fff;
+  --surface-raised-2:var(--n-75); --surface-hover:rgba(38,49,72,.06);
+  --surface-active:rgba(38,49,72,.09);
+  --surface-scrim:rgba(16,24,40,.32);
+  --border-subtle:rgba(0,0,0,.06); --border-strong:rgba(0,0,0,.1); --border-hairline:rgba(0,0,0,.05);
+  --text-primary:var(--n-1000); --text-secondary:var(--n-700); --text-muted:var(--n-600); --text-faint:var(--n-400);
+  --accent:var(--blue-500); --accent-soft:var(--blue-50);
+  --grid-line:rgba(15,17,21,.05);
+  --elev-card:0 1px 2px rgba(0,0,0,.03);
+  --elev-sheet:0 -8px 40px rgba(0,0,0,.12);
+  --elev-drawer:8px 0 32px rgba(16,24,40,.14);
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-canvas:var(--n-950); --surface-sunken:var(--n-900); --surface-raised:var(--n-850);
+  --surface-raised-2:var(--n-800); --surface-hover:rgba(255,255,255,.08);
+  --surface-active:rgba(255,255,255,.11);
+  --surface-scrim:rgba(0,0,0,.6);
+  --border-subtle:rgba(255,255,255,.06); --border-strong:rgba(255,255,255,.12); --border-hairline:rgba(255,255,255,.05);
+  --text-primary:var(--n-50); --text-secondary:var(--n-300); --text-muted:var(--n-400); --text-faint:var(--n-600);
+  --accent:var(--blue-450); --accent-soft:rgba(86,134,254,.16);
+  --grid-line:rgba(255,255,255,.05);
+  --elev-card:none;
+  --elev-sheet:0 -8px 40px rgba(0,0,0,.4);
+  --elev-drawer:8px 0 32px rgba(0,0,0,.5);
+}
+[data-price-scheme="cn"] {
+  --price-up:var(--red-600); --price-down:var(--green-600);
+  --price-up-soft:rgba(214,69,69,.1); --price-down-soft:rgba(18,161,80,.1);
+  --depth-up:rgba(214,69,69,.07); --depth-down:rgba(18,161,80,.07);
+  --fill-up:#d64545; --fill-down:#12a150;
+}
+[data-price-scheme="intl"] {
+  --price-up:var(--green-600); --price-down:var(--red-600);
+  --price-up-soft:rgba(18,161,80,.1); --price-down-soft:rgba(214,69,69,.1);
+  --depth-up:rgba(18,161,80,.07); --depth-down:rgba(214,69,69,.07);
+  --fill-up:#12a150; --fill-down:#d64545;
+}
+[data-theme="dark"][data-price-scheme="cn"] { --price-up:#ff6b6b; --price-down:#3ddc97; --depth-up:rgba(255,107,107,.10); --depth-down:rgba(61,220,151,.10); --fill-up:#e04b4b; --fill-down:#16a06f; }
+[data-theme="dark"][data-price-scheme="intl"] { --price-up:#3ddc97; --price-down:#ff6b6b; --depth-up:rgba(61,220,151,.10); --depth-down:rgba(255,107,107,.10); --fill-up:#16a06f; --fill-down:#e04b4b; }
+
+@media (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
+  :root {
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+* { box-sizing:border-box; }
+html, body { height:100%; }
+html { touch-action:pan-x pan-y; -webkit-text-size-adjust:100%; }
+/* 应用外壳锁死文档滚动：body 固定到可见区域，避免手机上滑时把整页拖出空白 */
+body {
+  margin:0; position:fixed; inset:0; width:100%;
+  height:var(--app-h, 100%);
+  overflow:hidden; overscroll-behavior:none;
+  background:var(--surface-canvas); color:var(--text-primary);
+  font-family:var(--font-sans); font-size:14px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent;
+}
+button, input, select { font:inherit; color:inherit; }
+button { cursor:pointer; background:none; border:none; }
+a { color:inherit; text-decoration:none; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.num { font-family:var(--font-mono); font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+.up { color:var(--price-up); } .down { color:var(--price-down); }
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+/* ================= 外壳 ================= */
+.app { position:relative; display:flex; height:100%; overflow:hidden; background:var(--surface-canvas); }
+
+.rail {
+  position:relative; z-index:40; flex:none; display:flex; flex-direction:column;
+  width:var(--rail-w); background:var(--surface-sunken);
+  transition:width var(--dur) var(--ease), transform var(--dur) var(--ease);
+  overflow:hidden;
+}
+.app[data-rail="collapsed"] .rail { width:var(--rail-w-collapsed); }
+.rail__head { display:flex; align-items:center; gap:9px; height:var(--topbar-h); padding:0 12px; flex:none; }
+.rail__logo {
+  flex:none; width:24px; height:24px; border-radius:8px;
+  background:linear-gradient(140deg,var(--blue-450),var(--blue-500));
+  box-shadow:0 1px 2px rgba(57,100,254,.28);
+}
+.rail__brand { font-weight:600; font-size:14px; letter-spacing:-.01em; color:var(--text-primary); white-space:nowrap; }
+.rail__collapse {
+  margin-left:auto; width:28px; height:28px; border-radius:var(--r-xs);
+  color:var(--text-faint); display:grid; place-items:center;
+  transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.rail__collapse:hover { background:var(--surface-hover); color:var(--text-primary); }
+.app[data-rail="collapsed"] .rail__brand,
+.app[data-rail="collapsed"] .rail__group-label,
+.app[data-rail="collapsed"] .navitem__label,
+.app[data-rail="collapsed"] .navitem__badge,
+.app[data-rail="collapsed"] .rail__collapse,
+.app[data-rail="collapsed"] .rail-account__meta { display:none; }
+.app[data-rail="collapsed"] .rail__head { position:relative; justify-content:center; padding:0; }
+.app[data-rail="collapsed"] .navitem { justify-content:center; gap:0; padding:0; }
+.app[data-rail="collapsed"] .rail-account { justify-content:center; padding:0; }
+/* 折叠后整条头部就是「展开」热区，悬停才露出箭头 */
+.app[data-rail="collapsed"] .rail__collapse {
+  display:grid; position:absolute; inset:0; width:100%; height:100%;
+  border-radius:0; color:transparent;
+}
+.app[data-rail="collapsed"] .rail__collapse:hover { background:var(--surface-hover); color:var(--text-secondary); }
+.app[data-rail="collapsed"] .rail__collapse svg { transform:rotate(180deg); }
+.app[data-rail="collapsed"] .rail__head:hover .rail__logo { opacity:.12; }
+.rail__logo { transition:opacity var(--dur) var(--ease); }
+
+.rail__nav { flex:1; overflow-y:auto; padding:4px 10px 10px; display:flex; flex-direction:column; gap:16px; }
+.rail__group { display:flex; flex-direction:column; gap:2px; }
+.rail__group-label { padding:0 10px 6px; color:var(--text-faint); font-size:11px; font-weight:500; letter-spacing:.02em; }
+.navitem {
+  display:flex; align-items:center; gap:10px; height:40px; padding:0 10px; border-radius:var(--r-sm);
+  color:var(--text-secondary); font-size:13.5px; font-weight:500; white-space:nowrap;
+  transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.navitem:hover { background:var(--surface-hover); color:var(--text-primary); }
+.navitem:hover .navitem__icon { color:var(--text-primary); }
+.navitem[aria-current="page"] { background:var(--surface-active); color:var(--text-primary); font-weight:600; }
+.navitem__icon {
+  flex:none; width:18px; height:18px; display:grid; place-items:center;
+  color:var(--text-muted); transition:color var(--dur) var(--ease);
+}
+.navitem[aria-current="page"] .navitem__icon { color:var(--accent); }
+.navitem__icon svg { width:18px; height:18px; display:block; }
+.navitem__badge {
+  margin-left:auto; min-width:18px; padding:0 5px; height:18px; border-radius:var(--r-pill);
+  background:var(--surface-raised-2); color:var(--text-muted);
+  font-family:var(--font-mono); font-size:10.5px; display:grid; place-items:center;
+}
+.navitem[aria-current="page"] .navitem__badge { background:rgba(57,100,254,.14); color:var(--accent); }
+
+.rail__foot {
+  flex:none; display:flex; flex-direction:column; gap:2px;
+  padding:8px 10px calc(8px + var(--safe-b)); border-top:1px solid var(--border-hairline);
+}
+.rail__foot .navitem { height:38px; }
+.rail-account {
+  display:flex; align-items:center; gap:9px; height:44px; margin-top:2px; padding:0 8px;
+  border-radius:var(--r-sm); text-align:left; width:100%;
+  transition:background-color var(--dur) var(--ease);
+}
+.rail-account:hover { background:var(--surface-hover); }
+.rail-account__avatar {
+  flex:none; width:26px; height:26px; border-radius:50%;
+  background:linear-gradient(140deg,#8ab0ff,var(--blue-500)); color:#fff;
+  font-size:11px; font-weight:600; display:grid; place-items:center;
+}
+.rail-account__meta { display:flex; flex-direction:column; min-width:0; line-height:1.25; }
+.rail-account__meta b { font-size:12.5px; font-weight:600; color:var(--text-primary); }
+.rail-account__meta em { font-style:normal; font-size:11px; color:var(--text-faint); }
+.rail-account .dot { margin-left:auto; flex:none; }
+
+.main { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+.topbar {
+  display:flex; align-items:center; gap:10px;
+  height:calc(var(--topbar-h) + var(--safe-t)); padding:var(--safe-t) 18px 0;
+  flex:none; background:var(--surface-canvas); border-bottom:1px solid var(--border-subtle);
+}
+.hamburger { display:none; width:36px; height:36px; margin-left:-8px; border-radius:var(--r-xs); color:var(--text-secondary); }
+.hamburger:hover { background:var(--surface-hover); }
+.topbar__title { font-size:15px; font-weight:600; }
+.spacer { flex:1; }
+.status {
+  display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px;
+  border-radius:var(--r-pill); background:var(--surface-raised-2);
+  color:var(--text-muted); font-size:11.5px; font-weight:500; white-space:nowrap;
+}
+.dot { width:7px; height:7px; border-radius:50%; background:var(--green-500); }
+
+.page { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; padding:22px 24px 28px; }
+.page[data-module="market"] { padding:0; display:flex; flex-direction:column; overflow:hidden; }
+
+/* ================= 通用组件 ================= */
+.pageHead { display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+.pageHead h1 { margin:0 0 4px; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.pageHead p { margin:0; color:var(--text-muted); font-size:13px; }
+.pageHead__actions { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  height:var(--h-m); padding:0 16px; border-radius:var(--r-pill);
+  font-size:13.5px; font-weight:500;
+  transition:background-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.btn--primary { background:var(--accent); color:#fff; }
+.btn--primary:hover { background:var(--blue-450); }
+.btn--ghost { border:1px solid var(--border-strong); color:var(--text-secondary); }
+.btn--ghost:hover { background:var(--surface-hover); color:var(--text-primary); }
+.card { background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:var(--r-md); box-shadow:var(--elev-card); overflow:hidden; }
+.card__head { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border-hairline); }
+.card__title { font-size:13.5px; font-weight:600; }
+.card__meta { margin-left:auto; color:var(--text-muted); font-size:12px; }
+.card__body { padding:16px; }
+.grid-2 { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:14px; }
+.grid-3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; }
+.stack { display:flex; flex-direction:column; gap:14px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; }
+.kpi { padding:14px 16px; }
+.kpi__label { color:var(--text-muted); font-size:12px; }
+.kpi__value { margin-top:6px; font-family:var(--font-mono); font-size:22px; font-weight:600; }
+.kpi__hint { margin-top:2px; color:var(--text-faint); font-size:11px; }
+.pill { display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 9px; border-radius:var(--r-pill); font-size:11.5px; font-weight:500; }
+.pill--ok { background:var(--price-down-soft); color:var(--price-down); }
+.pill--warn { background:rgba(245,158,11,.12); color:var(--amber-600); }
+.pill--muted { background:var(--surface-raised-2); color:var(--text-muted); }
+.pill--blue { background:var(--accent-soft); color:var(--accent); }
+.empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 20px; text-align:center; }
+.empty__icon { width:44px; height:44px; border-radius:var(--r-md); display:grid; place-items:center; background:var(--surface-raised-2); color:var(--text-faint); }
+.empty__title { font-size:14px; font-weight:600; }
+.empty__text { color:var(--text-muted); font-size:12.5px; max-width:340px; }
+.field2 { display:flex; flex-direction:column; gap:6px; }
+.field2 > span { color:var(--text-muted); font-size:12px; }
+.input {
+  height:38px; padding:0 12px; border-radius:var(--r-sm);
+  border:1px solid var(--border-strong); background:var(--surface-raised);
+  font-size:13.5px; outline:none; width:100%;
+}
+.input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px; }
+.seg { display:inline-flex; padding:3px; border-radius:var(--r-pill); background:var(--surface-raised-2); gap:2px; }
+.seg button { height:28px; padding:0 12px; border-radius:var(--r-pill); color:var(--text-muted); font-size:12.5px; }
+.seg button[aria-pressed="true"] { background:var(--surface-raised); color:var(--text-primary); box-shadow:var(--elev-card); }
+.table-wrap { overflow-x:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.table { width:100%; border-collapse:collapse; font-size:13px; }
+.table th { padding:10px 16px; text-align:left; color:var(--text-muted); font-size:11.5px; font-weight:500; border-bottom:1px solid var(--border-subtle); white-space:nowrap; }
+.table td { padding:12px 16px; border-bottom:1px solid var(--border-hairline); white-space:nowrap; }
+.table td.num, .table th.num { text-align:right; }
+.table td.mono, .table th.mono { font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+.table tr:last-child td { border-bottom:0; }
+.taskList { display:flex; flex-direction:column; }
+.taskRow { display:flex; align-items:center; gap:12px; padding:12px 16px; }
+.taskRow + .taskRow { border-top:1px solid var(--border-hairline); }
+.taskRow__name { font-size:13px; font-weight:500; }
+.taskRow__meta { color:var(--text-muted); font-size:11.5px; font-family:var(--font-mono); }
+.taskRow__ret { margin-left:auto; font-family:var(--font-mono); font-size:13px; font-weight:600; }
+.strategyCard { padding:16px; display:flex; flex-direction:column; gap:10px; }
+.strategyCard__top { display:flex; align-items:center; gap:8px; }
+.strategyCard__name { font-size:14px; font-weight:600; }
+.strategyCard__desc { color:var(--text-muted); font-size:12.5px; min-height:38px; }
+.strategyCard__foot { display:flex; align-items:center; gap:8px; }
+.logList { font-family:var(--font-mono); font-size:12px; }
+.logRow { display:grid; grid-template-columns:64px 52px 1fr; gap:10px; padding:6px 16px; }
+.logRow + .logRow { border-top:1px solid var(--border-hairline); }
+.logRow__time { color:var(--text-faint); }
+.logRow__lv { font-weight:600; }
+.logRow__msg { color:var(--text-secondary); white-space:normal; }
+.lv-info { color:var(--accent); } .lv-warn { color:var(--amber-600); } .lv-error { color:var(--red-600); } .lv-debug { color:var(--text-faint); }
+
+.scrim {
+  position:fixed; inset:0; z-index:50; background:var(--surface-scrim);
+  opacity:0; pointer-events:none; transition:opacity var(--dur) var(--ease);
+}
+.scrim[data-open="true"] { opacity:1; pointer-events:auto; }
+
+/* ================= 设置页（chat-demo 两栏式） ================= */
+.page[data-module="settings"] { padding:0; display:flex; overflow:hidden; }
+.set { display:flex; gap:28px; flex:1; min-height:0; padding:24px 24px 28px; }
+.set__nav { flex:none; width:172px; display:flex; flex-direction:column; gap:2px; }
+.set__item {
+  display:flex; align-items:center; gap:8px; height:40px; padding:0 10px;
+  border-radius:12px; color:var(--text-secondary); font-size:13.5px; font-weight:500; text-align:left;
+  transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.set__item:hover { background:var(--surface-hover); color:var(--text-primary); }
+.set__item[aria-current="true"] { background:var(--surface-active); color:var(--text-primary); }
+.set__content { flex:1; min-width:0; max-width:760px; overflow-y:auto; overscroll-behavior:contain; padding-right:8px; }
+.set-sec[hidden] { display:none; }
+
+.set-row { display:flex; align-items:center; gap:16px; min-height:60px; padding:12px 0; }
+.set-row + .set-row { box-shadow:inset 0 1px 0 var(--border-hairline); }
+.set-row--block { flex-direction:column; align-items:stretch; gap:0; }
+.set-row__text { min-width:0; flex:1; }
+.set-row__label { font-size:14px; line-height:22px; color:var(--text-primary); }
+.set-row__desc { margin-top:2px; color:var(--text-muted); font-size:12px; line-height:18px; }
+.set-row__ctrl { flex:none; display:flex; align-items:center; gap:8px; }
+
+.set-themes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:10px; }
+.set-theme {
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  height:82px; border:1px solid var(--border-strong); border-radius:12px;
+  color:var(--text-secondary); font-size:13px;
+  transition:background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.set-theme:hover { background:var(--surface-hover); color:var(--text-primary); }
+.set-theme[aria-pressed="true"] { background:var(--surface-active); border-color:transparent; color:var(--text-primary); font-weight:600; }
+.set-theme svg { width:20px; height:20px; }
+
+.set-schemes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }
+.set-scheme {
+  display:flex; align-items:center; justify-content:center; gap:12px; height:56px; padding:0 12px;
+  border:1px solid var(--border-strong); border-radius:12px;
+  color:var(--text-secondary); font-size:13px;
+  transition:background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.set-scheme:hover { background:var(--surface-hover); color:var(--text-primary); }
+.set-scheme[aria-pressed="true"] { background:var(--surface-active); border-color:transparent; color:var(--text-primary); font-weight:600; }
+.set-scheme__bars { display:flex; flex-direction:column; gap:1px; font-family:var(--font-mono); font-size:11px; line-height:1.45; }
+.set-scheme__bars i { font-style:normal; white-space:nowrap; }
+
+.switch {
+  position:relative; flex:none; width:38px; height:22px; border-radius:var(--r-pill);
+  background:var(--n-300); transition:background-color var(--dur) var(--ease);
+}
+[data-theme="dark"] .switch { background:var(--n-750); }
+.switch::after {
+  content:''; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+  background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.18);
+  transition:transform var(--dur) var(--ease);
+}
+.switch[aria-checked="true"] { background:var(--accent); }
+.switch[aria-checked="true"]::after { transform:translateX(16px); }
+
+.set-select {
+  appearance:none; -webkit-appearance:none; height:32px; padding:0 30px 0 12px;
+  border:none; border-radius:var(--r-pill); background-color:var(--surface-raised-2);
+  color:var(--text-primary); font-size:12.5px; cursor:pointer;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%2381858c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M3 4.75 6 7.75l3-3'/></svg>");
+  background-repeat:no-repeat; background-position:right 11px center;
+}
+.set-select:hover { background-color:var(--surface-active); }
+.set-step { display:inline-flex; align-items:center; gap:2px; padding:3px; border-radius:var(--r-pill); background:var(--surface-raised-2); }
+.set-step button { width:26px; height:26px; border-radius:50%; color:var(--text-secondary); display:grid; place-items:center; font-size:15px; line-height:1; }
+.set-step button:hover { background:var(--surface-raised); color:var(--text-primary); }
+.set-step output { min-width:26px; text-align:center; font-family:var(--font-mono); font-size:13px; }
+.set-link { color:var(--accent); font-size:12.5px; }
+.set-link:hover { text-decoration:underline; }
+
+@media (max-width:899px) {
+  .page[data-module="settings"] { display:block; padding:0; overflow-y:auto; }
+  .set { flex-direction:column; gap:14px; padding:14px 16px calc(24px + var(--safe-b)); }
+  .set__nav { width:auto; flex-direction:row; gap:6px; margin:0 -4px; padding:0 4px; overflow-x:auto; scrollbar-width:none; }
+  .set__nav::-webkit-scrollbar { display:none; }
+  .set__item {
+    flex:0 0 auto; height:34px; padding:0 14px; border-radius:var(--r-pill);
+    background:var(--surface-raised-2); font-size:13px; justify-content:center; white-space:nowrap;
+  }
+  .set__item[aria-current="true"] { background:var(--text-primary); color:var(--surface-canvas); }
+  .set__content { overflow:visible; padding-right:0; }
+  .set-row { min-height:56px; }
+  .set-row--desk { display:none; }
+  .set-row__desc { max-width:52vw; }
+  .set-themes { gap:8px; }
+  .set-theme { height:74px; font-size:12.5px; gap:6px; }
+}
+
+/* ================= 交易终端（market 模块） ================= */
+.term { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--surface-canvas); }
+
+.t-quote { display:flex; align-items:center; gap:12px; padding:10px 18px; flex:none; border-bottom:1px solid var(--border-subtle); flex-wrap:wrap; }
+.t-quote__sym { font-family:var(--font-mono); font-size:15px; font-weight:600; }
+.t-quote__meta { color:var(--text-muted); font-size:12px; }
+.t-quote__last { margin-left:auto; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:24px; font-weight:600; letter-spacing:-.02em; }
+.t-quote__delta { display:flex; flex-direction:column; align-items:flex-end; font-size:12px; font-family:var(--font-mono); }
+.t-quote__stats { display:flex; gap:16px; margin-left:8px; }
+.t-stat { display:flex; flex-direction:column; gap:1px; }
+.t-stat span:first-child { color:var(--text-faint); font-size:10.5px; }
+.t-stat span:last-child { font-family:var(--font-mono); font-size:11.5px; }
+
+.t-body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 320px; }
+.t-left { display:flex; flex-direction:column; min-width:0; min-height:0; border-right:1px solid var(--border-subtle); }
+.t-chart { position:relative; flex:1; min-height:180px; display:flex; }
+.t-chart canvas { width:100%; height:100%; display:block; }
+.t-tf { position:absolute; left:12px; top:10px; display:flex; gap:2px; padding:3px; border-radius:var(--r-pill); background:var(--surface-raised-2); }
+.t-tf button { height:24px; padding:0 9px; border-radius:var(--r-pill); color:var(--text-muted); font-family:var(--font-mono); font-size:11px; }
+.t-tf button[aria-pressed="true"] { color:var(--accent); background:var(--surface-raised); box-shadow:var(--elev-card); }
+.t-demo { padding:1px 7px; border-radius:var(--r-pill); background:var(--surface-raised-2); color:var(--text-faint); font-size:10.5px; }
+
+/* 桌面底部：委托 / 成交 / 持仓 */
+.t-dock { flex:none; height:196px; display:flex; flex-direction:column; border-top:1px solid var(--border-subtle); background:var(--surface-sunken); }
+.t-tabs { display:flex; align-items:center; gap:4px; height:40px; padding:5px 10px; flex:none; }
+.t-tab { display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 11px; border-radius:var(--r-pill); color:var(--text-muted); font-size:12.5px; font-weight:500; }
+.t-tab:hover { background:var(--surface-hover); }
+.t-tab[aria-selected="true"] { color:var(--accent); background:var(--accent-soft); }
+.t-tab__n { min-width:16px; padding:0 4px; border-radius:var(--r-pill); background:rgba(38,49,72,.08); font-family:var(--font-mono); font-size:10px; text-align:center; }
+.t-tab[aria-selected="true"] .t-tab__n { background:rgba(57,100,254,.14); }
+.t-body-scroll { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
+.t-side { display:flex; flex-direction:column; min-height:0; background:var(--surface-canvas); }
+
+/* 盘口 */
+.t-book { flex:none; }
+.t-book__head { display:flex; align-items:center; gap:8px; height:34px; padding:0 14px; border-bottom:1px solid var(--border-hairline); }
+.t-book__title { font-size:12.5px; font-weight:600; color:var(--text-secondary); }
+.t-book__meta { margin-left:auto; color:var(--text-faint); font-size:11px; }
+.t-book__row {
+  position:relative; display:grid; grid-template-columns:34px minmax(0,1fr) 54px; align-items:center;
+  height:24px; padding:0 14px;
+  font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:12px;
+}
+.t-book__row + .t-book__row { border-top:1px solid var(--border-hairline); }
+.t-book__depth { position:absolute; inset:0 auto 0 0; width:var(--w); background:var(--c); }
+.t-book__row > span:not(.t-book__depth) { position:relative; }
+.t-book__tag { color:var(--text-faint); font-size:10.5px; }
+.t-book__px { text-align:right; font-weight:500; }
+.t-book__qty { text-align:right; color:var(--text-secondary); }
+.t-book__spread { display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 14px; border-block:1px solid var(--border-hairline); background:var(--surface-sunken); font-family:var(--font-mono); font-size:12px; }
+.t-book__spread b { font-size:15px; font-weight:600; }
+
+/* 桌面内联下单 */
+.t-order { flex:1; min-height:0; overflow-y:auto; padding:12px 14px 14px; border-top:1px solid var(--border-subtle); }
+.t-order__seg { display:grid; grid-template-columns:1fr 1fr; gap:2px; padding:3px; border-radius:var(--r-pill); background:var(--surface-raised-2); }
+.t-order__seg button { height:32px; border-radius:var(--r-pill); color:var(--text-muted); font-size:13px; font-weight:600; }
+.t-order__seg button[aria-pressed="true"] { background:var(--surface-raised); box-shadow:var(--elev-card); }
+.t-order__seg button[aria-pressed="true"][data-side="buy"] { color:var(--price-up); }
+.t-order__seg button[aria-pressed="true"][data-side="sell"] { color:var(--price-down); }
+.t-field { display:flex; flex-direction:column; gap:5px; margin-top:10px; }
+.t-field label { display:flex; justify-content:space-between; color:var(--text-muted); font-size:11.5px; }
+.t-field label b { color:var(--text-secondary); font-weight:500; font-family:var(--font-mono); }
+.t-stepper { display:grid; grid-template-columns:38px minmax(0,1fr) 38px; align-items:center; height:40px; border:1px solid var(--border-strong); border-radius:var(--r-md); background:var(--surface-raised); overflow:hidden; }
+.t-stepper:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.t-stepper button { height:100%; color:var(--text-muted); font-size:16px; }
+.t-stepper button:active { background:var(--surface-hover); }
+.t-stepper input { width:100%; border:0; background:none; text-align:center; outline:none; font-family:var(--font-mono); font-size:15px; font-weight:500; -moz-appearance:textfield; }
+.t-stepper input::-webkit-outer-spin-button, .t-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.t-quick { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:8px; }
+.t-quick button { height:28px; border-radius:var(--r-pill); border:1px solid var(--border-strong); color:var(--text-secondary); font-family:var(--font-mono); font-size:11.5px; }
+.t-quick button[aria-pressed="true"] { border-color:transparent; background:var(--accent-soft); color:var(--accent); }
+.t-mini { display:flex; flex-direction:column; gap:4px; margin-top:10px; padding:9px 11px; border-radius:var(--r-sm); background:var(--surface-sunken); border:1px solid var(--border-subtle); }
+.t-mini div { display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-muted); }
+.t-mini b { color:var(--text-primary); font-weight:500; font-family:var(--font-mono); }
+.t-submit { width:100%; height:42px; margin-top:10px; border-radius:var(--r-pill); color:#fff; font-size:14px; font-weight:600; background:var(--fill-up); }
+.t-submit[data-side="sell"] { background:var(--fill-down); }
+.t-submit:active { filter:brightness(.94); }
+
+/* 卡片（托盘里用） */
+.t-card { display:flex; flex-direction:column; gap:7px; margin:10px 12px; padding:11px 13px; border:1px solid var(--border-subtle); border-radius:var(--r-md); background:var(--surface-raised); box-shadow:var(--elev-card); }
+.t-card__top { display:flex; align-items:center; gap:8px; }
+.t-card__sym { font-family:var(--font-mono); font-size:13px; font-weight:600; }
+.t-card__pnl { margin-left:auto; font-family:var(--font-mono); font-size:14px; font-weight:600; }
+.t-card__meta { display:flex; gap:14px; color:var(--text-muted); font-size:11.5px; }
+.t-card__meta b { color:var(--text-secondary); font-weight:500; font-family:var(--font-mono); }
+.t-card__actions { display:flex; gap:8px; }
+.t-card__actions button { height:28px; padding:0 12px; border-radius:var(--r-pill); border:1px solid var(--border-strong); color:var(--text-secondary); font-size:12px; }
+.t-card__actions button:hover { background:var(--surface-hover); color:var(--text-primary); }
+.tag { padding:2px 8px; border-radius:var(--r-pill); font-size:10.5px; font-weight:600; }
+.tag--long { background:var(--price-up-soft); color:var(--price-up); }
+.tag--short { background:var(--price-down-soft); color:var(--price-down); }
+.t-status { display:inline-flex; align-items:center; gap:5px; color:var(--text-muted); font-size:11px; }
+.t-status__dot { width:6px; height:6px; border-radius:50%; background:var(--green-500); }
+.t-status--live .t-status__dot { background:var(--amber-500); }
+.t-trade-row { display:grid; grid-template-columns:66px minmax(0,1fr) 64px 52px; align-items:center; height:26px; padding:0 14px; font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:11.5px; color:var(--text-secondary); }
+.t-trade-row + .t-trade-row { border-top:1px solid var(--border-hairline); }
+.t-trade-row span:nth-child(2), .t-trade-row span:nth-child(3), .t-trade-row span:nth-child(4) { text-align:right; }
+.t-trade-row__time { color:var(--text-faint); }
+.t-empty { padding:26px; text-align:center; color:var(--text-faint); font-size:12px; }
+
+/* 移动端托盘 + 动作栏（桌面隐藏） */
+.t-panels { display:none; }
+.t-actionbar { display:none; }
+
+/* ================= 移动端 ================= */
+@media (max-width: 899px) {
+  .rail {
+    position:fixed; inset:0 auto 0 0; z-index:60; width:280px; max-width:84vw;
+    transform:translateX(-100%); box-shadow:var(--elev-drawer); border-right:1px solid var(--border-strong);
+  }
+  .rail[data-open="true"] { transform:translateX(0); }
+  .app[data-rail="collapsed"] .rail { width:280px; }
+  .rail__collapse { display:none; }
+  .hamburger { display:grid; place-items:center; }
+  .topbar { padding-inline:12px; }
+  .page { padding:16px 14px 24px; }
+  .grid-2 { grid-template-columns:minmax(0,1fr); }
+  .table th, .table td { padding:9px 10px; }
+  .table { font-size:12.5px; }
+  .table th { font-size:11px; }
+  .table td.num, .table th.num { font-size:12px; }
+  .table-wrap { margin:0 -1px; }
+
+  .t-quote { padding:8px 14px; gap:10px; }
+  .t-quote__last { font-size:21px; }
+  .t-quote__stats { display:none; }
+  .t-body { grid-template-columns:minmax(0,1fr); }
+  .t-left { border-right:0; }
+  .t-dock { display:none; }
+  .t-side { display:none; }
+
+  .t-left { overflow:hidden; }
+  .t-chart { min-height:0; }
+  .t-panels {
+    display:flex; flex-direction:column;
+    flex:0 1 37%; max-height:46%; min-height:0;
+    margin-top:4px; border-radius:var(--r-lg) var(--r-lg) 0 0;
+    background:var(--surface-sunken); border-top:1px solid var(--border-subtle); overflow:hidden;
+  }
+  .t-panels .t-tabs { height:42px; padding:6px 10px; }
+  .t-panelbody { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
+
+  .t-actionbar {
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    padding:9px 14px calc(9px + var(--safe-b)); flex:none;
+    background:var(--surface-canvas); border-top:1px solid var(--border-subtle);
+  }
+  .t-actionbar button { height:46px; border-radius:var(--r-pill); color:#fff; font-size:15px; font-weight:600; }
+  .t-buy { background:var(--fill-up); }
+  .t-sell { background:var(--fill-down); }
+  .t-actionbar button:active { filter:brightness(.94); }
+}
+
+/* 移动端下单抽屉 */
+.t-scrim { position:absolute; inset:0; z-index:45; background:var(--surface-scrim); opacity:0; pointer-events:none; transition:opacity var(--dur) var(--ease); }
+.t-scrim[data-open="true"] { opacity:1; pointer-events:auto; }
+.t-sheet {
+  position:absolute; left:0; right:0; bottom:0; z-index:46;
+  display:flex; flex-direction:column;
+  height:var(--sheet-h, 62%); max-height:94%;
+  border-radius:var(--r-xl) var(--r-xl) 0 0;
+  background:var(--surface-canvas); box-shadow:var(--elev-sheet);
+  transform:translateY(100%); visibility:hidden;
+  transition:transform var(--dur) var(--ease), height var(--dur) var(--ease), visibility 0s linear var(--dur);
+  touch-action:none;
+}
+.t-sheet[data-open="true"] { transform:translateY(0); visibility:visible; transition:transform var(--dur) var(--ease), height var(--dur) var(--ease), visibility 0s; }
+.t-sheet[data-dragging="true"] { transition:none; }
+.t-grab { display:grid; place-items:center; height:24px; flex:none; cursor:grab; }
+.t-grab::after { content:""; width:36px; height:4px; border-radius:var(--r-pill); background:var(--n-300); }
+[data-theme="dark"] .t-grab::after { background:var(--n-750); }
+.t-sheet__head { display:flex; align-items:center; gap:8px; padding:0 16px 12px; flex:none; }
+.t-sheet__title { font-size:16px; font-weight:600; }
+.t-sheet__sub { color:var(--text-muted); font-size:12px; font-family:var(--font-mono); }
+.t-sheet__close { margin-left:auto; height:var(--h-xs); padding:0 12px; border-radius:var(--r-pill); border:1px solid var(--border-strong); color:var(--text-secondary); font-size:12px; }
+.t-sheet__viewport { flex:1; min-height:0; overflow:hidden; }
+.t-sheet__track { display:flex; width:200%; height:100%; transform:translateX(0); transition:transform var(--dur) var(--ease); }
+.t-sheet[data-step="1"] .t-sheet__track { transform:translateX(-50%); }
+.t-step { display:flex; flex-direction:column; width:50%; height:100%; overflow-y:auto; overscroll-behavior:contain; padding:0 16px calc(16px + var(--safe-b)); }
+.t-seg { display:grid; grid-template-columns:1fr 1fr; gap:2px; padding:3px; border-radius:var(--r-pill); background:var(--surface-raised-2); }
+.t-seg button { height:36px; border-radius:var(--r-pill); color:var(--text-muted); font-size:13.5px; font-weight:600; }
+.t-seg button[aria-pressed="true"] { background:var(--surface-raised); box-shadow:var(--elev-card); }
+.t-seg button[aria-pressed="true"][data-side="buy"] { color:var(--price-up); }
+.t-seg button[aria-pressed="true"][data-side="sell"] { color:var(--price-down); }
+.t-summary { display:flex; flex-direction:column; gap:7px; margin-top:14px; padding:12px 14px; border-radius:var(--r-md); background:var(--surface-sunken); border:1px solid var(--border-subtle); }
+.t-summary div { display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); }
+.t-summary b { color:var(--text-primary); font-weight:500; font-family:var(--font-mono); }
+.t-cta { position:sticky; bottom:0; margin-top:auto; padding:14px 0 calc(12px + var(--safe-b)); display:grid; grid-template-columns:92px 1fr; gap:10px; background:linear-gradient(to top, var(--surface-canvas) 72%, transparent); }
+.t-cta button { height:48px; border-radius:var(--r-pill); font-size:15px; font-weight:600; }
+.t-ghost { border:1px solid var(--border-strong); color:var(--text-secondary); }
+.t-primary { background:var(--fill-up); color:#fff; }
+.t-primary[data-side="sell"] { background:var(--fill-down); }
+.t-confirm { display:flex; flex-direction:column; margin-top:4px; border-radius:var(--r-md); overflow:hidden; border:1px solid var(--border-subtle); background:var(--surface-sunken); }
+.t-confirm div { display:flex; justify-content:space-between; padding:12px 14px; font-size:13px; color:var(--text-muted); }
+.t-confirm div + div { border-top:1px solid var(--border-hairline); }
+.t-confirm b { color:var(--text-primary); font-weight:500; font-family:var(--font-mono); }
+.t-warn { margin-top:12px; padding:12px 14px; border-radius:var(--r-md); font-size:12px; color:var(--amber-600); background:rgba(245,158,11,.09); }
+
+.toast {
+  position:fixed; left:50%; bottom:96px; transform:translate(-50%,8px); z-index:80;
+  padding:10px 16px; border-radius:var(--r-pill); background:var(--n-800); color:var(--n-50);
+  font-size:12.5px; white-space:nowrap; box-shadow:0 8px 24px rgba(0,0,0,.18);
+  opacity:0; pointer-events:none; transition:opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.toast[data-show="true"] { opacity:1; transform:translate(-50%,0); }
+
+@media (prefers-reduced-motion: reduce) { * { transition-duration:1ms !important; animation:none !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app" data-rail="expanded">
+
+  <aside class="rail" id="rail" aria-label="模块导航">
+    <div class="rail__head">
+      <span class="rail__logo" aria-hidden="true"></span>
+      <span class="rail__brand">vnpy Web</span>
+      <button class="rail__collapse" id="collapseBtn" title="折叠侧栏" aria-label="折叠侧栏">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M10 4 6 8l4 4"/></svg>
+      </button>
+    </div>
+    <nav class="rail__nav" id="railNav"></nav>
+    <div class="rail__foot">
+      <a class="navitem" href="#/settings" data-id="settings" title="设置">
+        <span class="navitem__icon"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="2.2"/><path d="M9 2.6v1.6M9 13.8v1.6M2.6 9h1.6M13.8 9h1.6M4.5 4.5l1.1 1.1M12.4 12.4l1.1 1.1M13.5 4.5l-1.1 1.1M5.6 12.4 4.5 13.5"/></svg></span>
+        <span class="navitem__label">设置</span>
+      </a>
+      <button class="rail-account" id="accountBtn" title="simnow · 模拟账户">
+        <span class="rail-account__avatar" aria-hidden="true">S</span>
+        <span class="rail-account__meta"><b>simnow</b><em>模拟账户</em></span>
+        <span class="dot" title="已连接"></span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="t-scrim" id="tScrim"></div>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" id="menuBtn" aria-expanded="false" aria-controls="rail" aria-label="打开模块导航">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
+      </button>
+      <span class="topbar__title" id="pageTitle">行情终端</span>
+      <span class="spacer"></span>
+      <span class="status" title="行情通道已连接（演示数据）">
+        <span class="dot"></span><span class="status__label">已连接</span>
+      </span>
+    </header>
+    <div class="page" id="page" data-module="market"></div>
+  </main>
+
+  <!-- 移动端下单抽屉（全局唯一，避免每次渲染重建） -->
+  <section class="t-sheet" id="sheet" data-open="false" data-step="0" role="dialog" aria-modal="true" aria-label="下单">
+    <div class="t-grab" id="grab" aria-hidden="true"></div>
+    <div class="t-sheet__head">
+      <span class="t-sheet__title" id="sheetTitle">买入开仓</span>
+      <span class="t-sheet__sub">rb2601 · 限价</span>
+      <button class="t-sheet__close" id="sheetClose">关闭</button>
+    </div>
+    <div class="t-sheet__viewport">
+      <div class="t-sheet__track">
+        <div class="t-step" id="step0">
+          <div class="t-seg" role="group" aria-label="方向">
+            <button data-side="buy" aria-pressed="true">买入开仓</button>
+            <button data-side="sell" aria-pressed="false">卖出开仓</button>
+          </div>
+          <div class="t-field">
+            <label>价格 <b>元/吨</b></label>
+            <div class="t-stepper">
+              <button data-step="price" data-dir="-1" aria-label="价格减">−</button>
+              <input id="sPrice" type="number" inputmode="decimal" value="3427" aria-label="委托价格" />
+              <button data-step="price" data-dir="1" aria-label="价格加">+</button>
+            </div>
+          </div>
+          <div class="t-field">
+            <label>数量 <b>手</b></label>
+            <div class="t-stepper">
+              <button data-step="qty" data-dir="-1" aria-label="数量减">−</button>
+              <input id="sQty" type="number" inputmode="numeric" min="1" value="2" aria-label="委托数量" />
+              <button data-step="qty" data-dir="1" aria-label="数量加">+</button>
+            </div>
+          </div>
+          <div class="t-quick" role="group" aria-label="快捷比例">
+            <button data-pct="25">25%</button><button data-pct="50">50%</button>
+            <button data-pct="75">75%</button><button data-pct="100" aria-pressed="true">全部</button>
+          </div>
+          <div class="t-summary">
+            <div><span>预估金额</span><b id="sAmount">68,540.00</b></div>
+            <div><span>保证金（13%）</span><b id="sMargin">8,910.20</b></div>
+            <div><span>可用资金</span><b>1,284,600.00</b></div>
+          </div>
+          <div class="t-cta">
+            <button class="t-ghost" id="sheetCancel">取消</button>
+            <button class="t-primary" id="toConfirm" data-side="buy">下一步</button>
+          </div>
+        </div>
+        <div class="t-step" id="step1">
+          <div class="t-confirm">
+            <div><span>合约</span><b>rb2601 螺纹钢 2701</b></div>
+            <div><span>方向</span><b id="cSide" class="up">买入开仓</b></div>
+            <div><span>价格</span><b id="cPrice">3427</b></div>
+            <div><span>数量</span><b id="cQty">2 手</b></div>
+            <div><span>预估金额</span><b id="cAmount">68,540.00</b></div>
+            <div><span>保证金</span><b id="cMargin">8,910.20</b></div>
+            <div><span>手续费</span><b id="cFee">6.85</b></div>
+          </div>
+          <div class="t-warn" id="cWarn">本单为模拟盘演示，不连接任何柜台。</div>
+          <div class="t-cta">
+            <button class="t-ghost" id="toEdit">返回修改</button>
+            <button class="t-primary" id="submitOrder" data-side="buy">确认买入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const fmt = (n, d = 0) => n.toLocaleString('zh-CN', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const store = {
+    get(k, d) { try { return localStorage.getItem('app:' + k) ?? d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('app:' + k, v); } catch {} },
+  };
+
+  /* ---------------- 图标 ---------------- */
+  const ICONS = {
+    chart: '<path d="M3 13.5 6.5 9l2.5 2.5L13 5.5l2 2"/><path d="M3 16.5h14"/>',
+    trade: '<path d="M4 6.5h9M10.5 4 13 6.5 10.5 9"/><path d="M14 12.5H5M7.5 10 5 12.5 7.5 15"/>',
+    backtest: '<circle cx="9" cy="9" r="5.2"/><path d="M9 6.2V9l2 1.4"/><path d="M14.5 14.5 16.5 16.5"/>',
+    strategy: '<rect x="3" y="4" width="12" height="4" rx="1.2"/><rect x="3" y="10" width="12" height="4" rx="1.2"/><path d="M6 6h.01M6 12h.01"/>',
+    data: '<ellipse cx="9" cy="5" rx="5.2" ry="2"/><path d="M3.8 5v8c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2V5"/><path d="M3.8 9c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2"/>',
+    logs: '<path d="M4 5h11M4 9h11M4 13h7"/>',
+    gear: '<circle cx="9" cy="9" r="2.2"/><path d="M9 2.6v1.6M9 13.8v1.6M2.6 9h1.6M13.8 9h1.6M4.5 4.5l1.1 1.1M12.4 12.4l1.1 1.1M13.5 4.5l-1.1 1.1M5.6 12.4 4.5 13.5"/>',
+  };
+  const svg = (n) => `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ''}</svg>`;
+
+  /* ---------------- 导航 ---------------- */
+  const NAV = [
+    { label: '交易', items: [{ id: 'market', label: '行情终端', icon: 'chart' }, { id: 'trade', label: '交易', icon: 'trade' }] },
+    { label: '研究', items: [
+      { id: 'backtest', label: '回测中心', icon: 'backtest', badge: '2' },
+      { id: 'strategy', label: '策略', icon: 'strategy' },
+      { id: 'data', label: '数据', icon: 'data' },
+    ] },
+    { label: '系统', items: [{ id: 'logs', label: '日志', icon: 'logs' }] },
+  ];
+  const TITLES = { market: '行情终端', trade: '交易', backtest: '回测中心', strategy: '策略', data: '数据', logs: '日志', settings: '设置' };
+  $('#railNav').innerHTML = NAV.map((g) => `
+    <div class="rail__group">
+      <div class="rail__group-label">${g.label}</div>
+      ${g.items.map((it) => `
+        <a class="navitem" href="#/${it.id}" data-id="${it.id}" title="${it.label}">
+          <span class="navitem__icon">${svg(it.icon)}</span>
+          <span class="navitem__label">${it.label}</span>
+          ${it.badge ? `<span class="navitem__badge">${it.badge}</span>` : ''}
+        </a>`).join('')}
+    </div>`).join('');
+
+  /* ---------------- 数据 ---------------- */
+  let seed = 20261118;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const bars = [];
+  let px = 3398;
+  for (let i = 0; i < 90; i++) {
+    const open = px;
+    const close = Math.max(3360, Math.min(3460, open + (rnd() - 0.46) * 9));
+    bars.push({ open, close, high: Math.max(open, close) + rnd() * 4, low: Math.min(open, close) - rnd() * 4, vol: 200 + rnd() * 1400 });
+    px = close;
+  }
+  const quote = { sym: 'rb2601', name: '螺纹钢 2701', ex: 'SHFE', last: 3427, prevClose: 3409 };
+  const state = { side: 'buy', pct: 100, tab: 'book', dock: 'orders', viewBars: bars.slice(-60) };
+  let ORDERS = [
+    { t: '14:52', sym: 'rb2601', side: '买', oc: '开仓', px: 3420, qty: 2, filled: 2, st: '全部成交', live: false },
+    { t: '14:55', sym: 'rb2601', side: '买', oc: '开仓', px: 3418, qty: 1, filled: 0, st: '挂单中', live: true },
+    { t: '14:58', sym: 'rb2601', side: '卖', oc: '平仓', px: 3440, qty: 1, filled: 0, st: '挂单中', live: true },
+  ];
+  const POSITIONS = [{ sym: 'rb2601', dir: '多', qty: 2, avg: 3412, margin: '8,871', pnl: '+300.00' }];
+  const BACKTESTS = [
+    { name: '双均线 · rb2601', meta: '2025-01-01 → 2025-10-31 · 1m · 初始 100 万', ret: '+18.42%', st: '已完成', cls: 'pill--ok' },
+    { name: '布林带突破 · IF2612', meta: '2025-03-01 → 2025-09-30 · 5m · 初始 50 万', ret: '-4.10%', st: '已完成', cls: 'pill--muted' },
+  ];
+  const STRATEGIES = [
+    { name: '双均线交叉', desc: 'MA5 上穿 MA20 开多，下穿平仓。适合趋势品种。', tag: '运行中', cls: 'pill--ok', params: '6 个参数' },
+    { name: '布林带突破', desc: '价格突破上轨开多、跌破下轨开空，带 ATR 止损。', tag: '已停止', cls: 'pill--muted', params: '8 个参数' },
+    { name: '网格做市', desc: '在区间内等差挂单，赚取价差；需严格风控。', tag: '待部署', cls: 'pill--warn', params: '5 个参数' },
+  ];
+  const DOWNLOADS = [['rb2601', '1m', '2024-01-01 → 2025-10-31', '完成', '100%'], ['IF2612', '5m', '2024-06-01 → 2025-10-31', '进行中', '62%'], ['au2602', '1d', '2020-01-01 → 2025-10-31', '完成', '100%']];
+  const LOGS = [
+    ['08:31:02', 'INFO', '行情网关已连接 · CTP / simnow'],
+    ['08:31:05', 'INFO', '合约缓存加载完成，共 1,284 个合约'],
+    ['08:45:11', 'WARN', 'rb2601 盘口深度不足 3 档，已降级为 1 档刷新'],
+    ['09:00:00', 'INFO', '日盘开盘，持仓同步完成（1 个合约）'],
+    ['09:12:44', 'DEBUG', 'tick 队列积压 12ms，自动扩容工作者'],
+    ['09:30:02', 'ERROR', '回测任务 #b-0421 失败：数据缺口 2025-07-14'],
+  ];
+
+  /* ---------------- 图表 ---------------- */
+  let chartCanvas = null;
+  function drawChart() {
+    if (!chartCanvas || !document.contains(chartCanvas)) return;
+    const c = chartCanvas, ctx = c.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = c.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = r.width, H = r.height;
+    const padR = 52, padB = 14, padT = 16, padL = 8;
+    const volH = Math.round(H * 0.16);
+    const plotH = H - padB - padT - volH;
+    const plotW = W - padR - padL;
+    const view = state.viewBars;
+    const hi = Math.max(...view.map(b => b.high)) + 4;
+    const lo = Math.min(...view.map(b => b.low)) - 4;
+    const maxVol = Math.max(...view.map(b => b.vol));
+    const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
+    const step = plotW / view.length;
+    const bw = Math.max(2, Math.min(9, step * 0.62));
+    const up = css('--price-up'), down = css('--price-down');
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = `10px ${css('--font-mono') || 'monospace'}`;
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = css('--grid-line'); ctx.fillStyle = css('--text-muted');
+    for (let i = 0; i <= 3; i++) {
+      const v = lo + ((hi - lo) / 3) * i;
+      const py = Math.round(y(v)) + 0.5;
+      ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL + plotW, py); ctx.stroke();
+      ctx.fillText(v.toFixed(0), padL + plotW + 6, py);
+    }
+    view.forEach((b, i) => {
+      const cx = padL + step * i + step / 2;
+      const col = b.close >= b.open ? up : down;
+      ctx.strokeStyle = col; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(cx, y(b.high)); ctx.lineTo(cx, y(b.low)); ctx.lineWidth = 1; ctx.stroke();
+      const top = y(Math.max(b.open, b.close));
+      ctx.fillRect(cx - bw / 2, top, bw, Math.max(1, y(Math.min(b.open, b.close)) - top));
+      const vh = (b.vol / maxVol) * (volH - 4);
+      ctx.globalAlpha = .35; ctx.fillRect(cx - bw / 2, H - padB - vh, bw, vh); ctx.globalAlpha = 1;
+    });
+    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.4;
+    ctx.beginPath(); let started = false;
+    view.forEach((b, i) => {
+      if (i < 4) return;
+      const ma = view.slice(i - 4, i + 1).reduce((s, x) => s + x.close, 0) / 5;
+      const cx = padL + step * i + step / 2;
+      started ? ctx.lineTo(cx, y(ma)) : (ctx.moveTo(cx, y(ma)), started = true);
+    });
+    ctx.stroke();
+    const ly = Math.round(y(quote.last)) + 0.5;
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = up;
+    ctx.beginPath(); ctx.moveTo(padL, ly); ctx.lineTo(padL + plotW, ly); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* ---------------- 片段 ---------------- */
+  function bookHtml() {
+    const rows = [];
+    for (let i = 5; i >= 1; i--) rows.push({ tag: '卖' + i, px: quote.last + i, bid: false });
+    for (let i = 1; i <= 5; i++) rows.push({ tag: '买' + i, px: quote.last - i, bid: true });
+    let html = '';
+    rows.forEach((r, idx) => {
+      if (idx === 5) html += `<div class="t-book__spread"><b class="num up">${quote.last}</b><span style="color:var(--text-muted)">价差 2</span></div>`;
+      const q = Math.round(6 + rnd() * 40);
+      html += `<div class="t-book__row">
+        <span class="t-book__depth" style="--w:${Math.round(q / 45 * 100)}%;--c:${r.bid ? 'var(--depth-up)' : 'var(--depth-down)'}"></span>
+        <span class="t-book__tag">${r.tag}</span>
+        <span class="t-book__px num ${r.bid ? 'up' : 'down'}">${r.px}</span>
+        <span class="t-book__qty num">${q}</span>
+      </div>`;
+    });
+    return html;
+  }
+  const tradesHtml = () => Array.from({ length: 12 }, (_, i) => {
+    const u = rnd() > .45;
+    return `<div class="t-trade-row">
+      <span class="t-trade-row__time">14:${String(59 - i).padStart(2, '0')}</span>
+      <span class="num ${u ? 'up' : 'down'}">${quote.last + (u ? 1 : -1)}</span>
+      <span class="num">${Math.round(2 + rnd() * 30)}</span>
+      <span class="num" style="color:var(--text-faint)">${u ? 'B' : 'S'}</span>
+    </div>`;
+  }).join('');
+  const positionsHtml = () => POSITIONS.map((x) => `
+    <div class="t-card">
+      <div class="t-card__top">
+        <span class="t-card__sym">${x.sym}</span>
+        <span class="tag ${x.dir === '多' ? 'tag--long' : 'tag--short'}">${x.dir} ${x.qty} 手</span>
+        <span class="t-card__pnl up">${x.pnl}</span>
+      </div>
+      <div class="t-card__meta"><span>均价 <b>${x.avg}</b></span><span>最新 <b>${quote.last}</b></span><span>保证金 <b>${x.margin}</b></span></div>
+      <div class="t-card__actions"><button>平仓</button><button>加仓</button><button>止盈止损</button></div>
+    </div>`).join('');
+  const ordersHtml = () => ORDERS.map((o) => `
+    <div class="t-card">
+      <div class="t-card__top">
+        <span class="t-card__sym">${o.sym}</span>
+        <span class="${o.side === '买' ? 'up' : 'down'}">${o.side}${o.oc}</span>
+        <span class="t-status ${o.live ? 't-status--live' : ''}"><span class="t-status__dot"></span>${o.st}</span>
+        <span class="t-card__pnl num" style="color:var(--text-primary)">${o.px}</span>
+      </div>
+      <div class="t-card__meta"><span>${o.t}</span><span>数量 <b>${o.qty}</b></span><span>已成交 <b>${o.filled}</b></span></div>
+      ${o.live ? '<div class="t-card__actions"><button>撤单</button><button>改单</button></div>' : ''}
+    </div>`).join('');
+  const panelHtml = (tab) => tab === 'book' ? bookHtml() : tab === 'trades' ? tradesHtml() : tab === 'positions' ? positionsHtml() : ordersHtml();
+
+  /* ---------------- 页面 ---------------- */
+  const PAGES = {
+    market() {
+      return `
+      <div class="term">
+        <div class="t-quote">
+          <span class="t-quote__sym">${quote.sym}</span>
+          <span class="t-quote__meta">${quote.name} · ${quote.ex}</span>
+          <span class="t-demo">演示数据</span>
+          <span class="t-quote__last up" id="qLast">${quote.last}</span>
+          <div class="t-quote__delta"><span class="up" id="qChg">+18</span><span class="up" id="qPct">+0.53%</span></div>
+          <div class="t-quote__stats">
+            <div class="t-stat"><span>今开</span><span>3410</span></div>
+            <div class="t-stat"><span>最高</span><span class="up">3438</span></div>
+            <div class="t-stat"><span>最低</span><span class="down">3402</span></div>
+            <div class="t-stat"><span>昨结</span><span>3409</span></div>
+          </div>
+        </div>
+
+        <div class="t-body">
+          <div class="t-left">
+            <div class="t-chart">
+              <canvas id="chart" role="img" aria-label="螺纹钢 1 分钟 K 线"></canvas>
+              <div class="t-tf" role="group" aria-label="周期">
+                <button aria-pressed="true" data-tf="60">1m</button>
+                <button aria-pressed="false" data-tf="36">5m</button>
+                <button aria-pressed="false" data-tf="24">15m</button>
+              </div>
+            </div>
+            <div class="t-dock">
+              <div class="t-tabs" role="tablist" aria-label="交易数据">
+                <button class="t-tab" role="tab" aria-selected="true" data-dock="orders">委托<b class="t-tab__n" id="nOrders">${ORDERS.length}</b></button>
+                <button class="t-tab" role="tab" aria-selected="false" data-dock="trades">成交<b class="t-tab__n">8</b></button>
+                <button class="t-tab" role="tab" aria-selected="false" data-dock="positions">持仓<b class="t-tab__n">1</b></button>
+              </div>
+              <div class="t-body-scroll" id="dockBody"></div>
+            </div>
+          </div>
+
+          <aside class="t-side">
+            <div class="t-book">
+              <div class="t-book__head"><span class="t-book__title">盘口</span><span class="t-book__meta">五档</span></div>
+              <div id="bookDesktop"></div>
+            </div>
+            <div class="t-order">
+              <div class="t-order__seg" role="group" aria-label="方向">
+                <button data-side="buy" aria-pressed="true">买入</button>
+                <button data-side="sell" aria-pressed="false">卖出</button>
+              </div>
+              <div class="t-field">
+                <label>价格 <b>元/吨</b></label>
+                <div class="t-stepper">
+                  <button data-dstep="price" data-dir="-1" aria-label="价格减">−</button>
+                  <input id="dPrice" type="number" inputmode="decimal" value="3427" aria-label="委托价格" />
+                  <button data-dstep="price" data-dir="1" aria-label="价格加">+</button>
+                </div>
+              </div>
+              <div class="t-field">
+                <label>数量 <b>手</b></label>
+                <div class="t-stepper">
+                  <button data-dstep="qty" data-dir="-1" aria-label="数量减">−</button>
+                  <input id="dQty" type="number" inputmode="numeric" min="1" value="2" aria-label="委托数量" />
+                  <button data-dstep="qty" data-dir="1" aria-label="数量加">+</button>
+                </div>
+              </div>
+              <div class="t-quick" role="group" aria-label="快捷比例">
+                <button data-dpct="25">25%</button><button data-dpct="50">50%</button>
+                <button data-dpct="75">75%</button><button data-dpct="100" aria-pressed="true">全部</button>
+              </div>
+              <div class="t-mini">
+                <div><span>预估金额</span><b id="dAmount">68,540.00</b></div>
+                <div><span>保证金</span><b id="dMargin">8,910.20</b></div>
+                <div><span>可用资金</span><b>1,284,600.00</b></div>
+              </div>
+              <button class="t-submit" id="dSubmit" data-side="buy">买入开仓 rb2601</button>
+            </div>
+          </aside>
+        </div>
+
+        <div class="t-panels">
+          <div class="t-tabs" role="tablist" aria-label="交易数据">
+            <button class="t-tab" role="tab" aria-selected="true" data-tab="book">盘口</button>
+            <button class="t-tab" role="tab" aria-selected="false" data-tab="trades">成交<b class="t-tab__n">8</b></button>
+            <button class="t-tab" role="tab" aria-selected="false" data-tab="positions">持仓<b class="t-tab__n">1</b></button>
+            <button class="t-tab" role="tab" aria-selected="false" data-tab="orders">委托<b class="t-tab__n" id="nOrdersM">${ORDERS.length}</b></button>
+          </div>
+          <div class="t-panelbody" id="panelBody"></div>
+        </div>
+
+        <div class="t-actionbar">
+          <button class="t-buy" data-open="buy">买入开仓</button>
+          <button class="t-sell" data-open="sell">卖出开仓</button>
+        </div>
+      </div>`;
+    },
+
+    trade() {
+      return `
+        <div class="pageHead">
+          <div><h1>交易</h1><p>委托与持仓管理，行情终端页也可直接下单</p></div>
+          <div class="pageHead__actions"><button class="btn btn--ghost">切换合约</button></div>
+        </div>
+        <div class="stack">
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi__label">今日成交</div><div class="kpi__value">12 <span style="font-size:13px;font-weight:400;color:var(--text-muted)">笔</span></div><div class="kpi__hint">手续费 86.40</div></div>
+            <div class="card kpi"><div class="kpi__label">浮动盈亏</div><div class="kpi__value up">+320.00</div><div class="kpi__hint">rb2601 多 2 手</div></div>
+            <div class="card kpi"><div class="kpi__label">保证金占用</div><div class="kpi__value">8,910.20</div><div class="kpi__hint">占权益 0.7%</div></div>
+            <div class="card kpi"><div class="kpi__label">可用资金</div><div class="kpi__value">1,284,600.00</div><div class="kpi__hint">simnow 模拟</div></div>
+          </div>
+        <div class="grid-2">
+          <section class="card">
+            <div class="card__head"><span class="card__title">活动委托</span><span class="card__meta" id="tradeCount">${ORDERS.length} 笔</span></div>
+            <div class="taskList" id="tradeList">
+              ${ORDERS.map((o) => `
+                <div class="taskRow">
+                  <span class="num">${o.sym}</span>
+                  <span class="${o.side === '买' ? 'up' : 'down'}">${o.side}${o.oc}</span>
+                  <span class="taskRow__meta">${o.px} × ${o.qty}</span>
+                  <span class="pill ${o.live ? 'pill--warn' : 'pill--muted'}">${o.st}</span>
+                  ${o.live ? '<button class="btn btn--ghost" style="height:28px;padding:0 12px;margin-left:auto">撤单</button>' : ''}
+                </div>`).join('')}
+            </div>
+          </section>
+          <section class="card">
+            <div class="card__head"><span class="card__title">持仓</span></div>
+            <div class="taskList">
+              ${POSITIONS.map((p) => `
+                <div class="taskRow">
+                  <span class="num">${p.sym}</span>
+                  <span class="tag ${p.dir === '多' ? 'tag--long' : 'tag--short'}">${p.dir} ${p.qty} 手</span>
+                  <span class="taskRow__meta">均价 ${p.avg}</span>
+                  <span class="taskRow__ret up">${p.pnl}</span>
+                </div>`).join('')}
+            </div>
+          </section>
+        </div>
+        </div>`;
+    },
+
+    backtest() {
+      return `
+        <div class="pageHead">
+          <div><h1>回测中心</h1><p>用历史数据验证策略，结果可对比、可导出</p></div>
+          <div class="pageHead__actions"><button class="btn btn--ghost">导入结果</button><button class="btn btn--primary" id="runBt">新建回测</button></div>
+        </div>
+        <div class="stack">
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi__label">今日任务</div><div class="kpi__value">2</div><div class="kpi__hint">1 完成 · 1 排队</div></div>
+            <div class="card kpi"><div class="kpi__label">历史最优</div><div class="kpi__value up">+18.42%</div><div class="kpi__hint">双均线 · rb2601</div></div>
+            <div class="card kpi"><div class="kpi__label">数据覆盖</div><div class="kpi__value">2020–2025</div><div class="kpi__hint">1m / 5m / 1d</div></div>
+            <div class="card kpi"><div class="kpi__label">平均耗时</div><div class="kpi__value">3m 12s</div><div class="kpi__hint">近 20 次</div></div>
+          </div>
+          <section class="card">
+            <div class="card__head"><span class="card__title">回测参数</span><span class="card__meta">未运行</span></div>
+            <div class="card__body">
+              <div class="form-grid">
+                <label class="field2"><span>策略</span><select class="input"><option>双均线交叉</option><option>布林带突破</option></select></label>
+                <label class="field2"><span>合约</span><input class="input num" value="rb2601" /></label>
+                <label class="field2"><span>周期</span><select class="input"><option>1 分钟</option><option>5 分钟</option></select></label>
+                <label class="field2"><span>初始资金</span><input class="input num" value="1,000,000" /></label>
+              </div>
+              <div class="empty">
+                <div class="empty__icon">${svg('backtest')}</div>
+                <div class="empty__title">还没有运行结果</div>
+                <div class="empty__text">选好参数后点击「开始回测」，完成后这里会显示净值曲线、回撤与成交明细。</div>
+                <button class="btn btn--primary" id="runBt2">开始回测</button>
+              </div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card__head"><span class="card__title">最近任务</span><span class="card__meta">${BACKTESTS.length} 条</span></div>
+            <div class="taskList">
+              ${BACKTESTS.map((b) => `
+                <div class="taskRow">
+                  <span class="taskRow__name">${b.name}</span>
+                  <span class="taskRow__meta">${b.meta}</span>
+                  <span class="pill ${b.cls}">${b.st}</span>
+                  <span class="taskRow__ret ${b.ret.startsWith('+') ? 'up' : 'down'}">${b.ret}</span>
+                </div>`).join('')}
+            </div>
+          </section>
+        </div>`;
+    },
+
+    strategy() {
+      return `
+        <div class="pageHead"><div><h1>策略</h1><p>策略实例与参数，启停会影响实盘</p></div>
+          <div class="pageHead__actions"><button class="btn btn--primary">新建策略</button></div></div>
+        <div class="grid-3">
+          ${STRATEGIES.map((s) => `
+            <section class="card strategyCard">
+              <div class="strategyCard__top"><span class="strategyCard__name">${s.name}</span><span class="pill ${s.cls}" style="margin-left:auto">${s.tag}</span></div>
+              <p class="strategyCard__desc">${s.desc}</p>
+              <div class="strategyCard__foot"><span class="pill pill--muted">${s.params}</span>
+                <button class="btn btn--ghost" style="height:30px;margin-left:auto;padding:0 14px">参数</button></div>
+            </section>`).join('')}
+        </div>`;
+    },
+
+    data() {
+      return `
+        <div class="pageHead"><div><h1>数据</h1><p>历史行情下载与本地数据管理</p></div>
+          <div class="pageHead__actions"><button class="btn btn--primary">新建下载</button></div></div>
+        <div class="stack">
+          <div class="kpis">
+            <div class="card kpi"><div class="kpi__label">本地合约</div><div class="kpi__value">3</div><div class="kpi__hint">rb / IF / au</div></div>
+            <div class="card kpi"><div class="kpi__label">占用空间</div><div class="kpi__value">1.82 GB</div><div class="kpi__hint">本地 SQLite</div></div>
+            <div class="card kpi"><div class="kpi__label">最近更新</div><div class="kpi__value">11-18 22:41</div><div class="kpi__hint">1m · rb2601</div></div>
+            <div class="card kpi"><div class="kpi__label">下载队列</div><div class="kpi__value">1</div><div class="kpi__hint">IF2612 5m 进行中</div></div>
+          </div>
+        <section class="card">
+          <div class="card__head"><span class="card__title">下载任务</span><span class="card__meta">${DOWNLOADS.length} 条</span></div>
+          <div class="table-wrap"><table class="table">
+            <thead><tr><th>合约</th><th>周期</th><th>区间</th><th>状态</th><th class="num">进度</th></tr></thead>
+            <tbody>${DOWNLOADS.map((d) => `<tr><td class="mono">${d[0]}</td><td>${d[1]}</td><td class="mono">${d[2]}</td>
+              <td><span class="pill ${d[3] === '完成' ? 'pill--ok' : 'pill--warn'}">${d[3]}</span></td><td class="num">${d[4]}</td></tr>`).join('')}</tbody>
+          </table></div>
+        </section>
+        </div>`;
+    },
+
+    logs() {
+      return `
+        <div class="pageHead"><div><h1>日志</h1><p>网关、引擎与任务运行记录</p></div>
+          <div class="pageHead__actions"><button class="btn btn--ghost">导出</button></div></div>
+        <section class="card">
+          <div class="card__head"><span class="card__title">运行日志</span><span class="card__meta">自动滚动</span></div>
+          <div class="logList">${LOGS.map(([t, lv, msg]) => `
+            <div class="logRow"><span class="logRow__time">${t}</span>
+              <span class="logRow__lv lv-${lv.toLowerCase()}">${lv}</span>
+              <span class="logRow__msg">${msg}</span></div>`).join('')}</div>
+        </section>`;
+    },
+
+    settings() {
+      const mode = store.get('theme', 'light');
+      const scheme = store.get('scheme', 'cn');
+      const railCollapsed = document.getElementById('app').dataset.rail === 'collapsed';
+      const on = (k, d = '1') => store.get(k, d) === '1';
+      const sw = (k, label, d = '1') => `<button class="switch" role="switch" aria-checked="${on(k, d)}" aria-label="${label}" data-switch="${k}"></button>`;
+      const sel = (k, val, opts, label) => `<select class="set-select" data-select="${k}" aria-label="${label}">${
+        opts.map(([v, t]) => `<option value="${v}"${v === val ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+      const row = (label, desc, ctrl) => `<div class="set-row">
+          <div class="set-row__text"><div class="set-row__label">${label}</div>${desc ? `<div class="set-row__desc">${desc}</div>` : ''}</div>
+          <div class="set-row__ctrl">${ctrl}</div></div>`;
+      const block = (label, desc, body) => `<div class="set-row set-row--block">
+          <div class="set-row__text"><div class="set-row__label">${label}</div>${desc ? `<div class="set-row__desc">${desc}</div>` : ''}</div>
+          ${body}</div>`;
+      const ICONSET = {
+        light: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="10" r="3.2"/><path d="M10 2.6v1.5M10 15.9v1.5M2.6 10h1.5M15.9 10h1.5M4.8 4.8l1.1 1.1M14.1 14.1l1.1 1.1M15.2 4.8l-1.1 1.1M5.9 14.1l-1.1 1.1"/></svg>',
+        dark: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M16.1 12.3A6.5 6.5 0 0 1 7.7 3.9 6.5 6.5 0 1 0 16.1 12.3Z"/></svg>',
+        system: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="3.9" width="14.4" height="9.5" rx="1.6"/><path d="M7 16.3h6M10 13.4v2.9"/></svg>',
+      };
+      const themeCard = (v, label) => `<button class="set-theme" data-mode="${v}" aria-pressed="${mode === v}" title="${label}">${ICONSET[v]}<span>${label}</span></button>`;
+      const schemeCard = (v, label, up, down) => `<button class="set-scheme" data-scheme="${v}" aria-pressed="${scheme === v}">
+          <span class="set-scheme__bars" aria-hidden="true"><i style="color:${up}">↑ 1.24%</i><i style="color:${down}">↓ 0.86%</i></span>
+          <span>${label}</span></button>`;
+
+      return `
+        <div class="set">
+          <nav class="set__nav" id="setNav" aria-label="设置分区">
+            <button class="set__item" data-sec="general">通用</button>
+            <button class="set__item" data-sec="appearance">外观</button>
+            <button class="set__item" data-sec="market">行情与交易</button>
+            <button class="set__item" data-sec="about">关于</button>
+          </nav>
+          <div class="set__content" id="setContent">
+
+            <section class="set-sec" data-sec="general" hidden>
+              ${row('语言', '界面语言，切换后需刷新页面', sel('lang', store.get('lang', 'zh'), [['zh', '中文（简体）'], ['en', 'English']], '语言'))}
+              ${row('数字千分位', '价格与数量使用逗号分组', sw('thousand', '数字千分位'))}
+              ${row('紧凑模式', '压缩行高，同屏显示更多委托与成交', sw('compact', '紧凑模式', '0'))}
+              ${row('时间精确到秒', '委托、成交列表的时间列格式', sw('seconds', '时间精确到秒'))}
+            </section>
+
+            <section class="set-sec" data-sec="appearance" hidden>
+              ${block('主题', '跟随系统时随系统深浅色自动切换', `<div class="set-themes">
+                ${themeCard('light', '浅色')}${themeCard('dark', '深色')}${themeCard('system', '跟随系统')}
+              </div>`)}
+              ${block('涨跌配色', '国内习惯红涨绿跌，国际习惯相反', `<div class="set-schemes">
+                ${schemeCard('cn', '红涨绿跌', '#d64545', '#12a150')}${schemeCard('intl', '绿涨红跌', '#12a150', '#d64545')}
+              </div>`)}
+              <div class="set-row set-row--desk"><div class="set-row__text"><div class="set-row__label">默认折叠侧栏</div><div class="set-row__desc">桌面端启动时收起模块导航</div></div>
+                <div class="set-row__ctrl"><button class="switch" role="switch" aria-checked="${railCollapsed}" aria-label="默认折叠侧栏" data-switch="rail"></button></div></div>
+            </section>
+
+            <section class="set-sec" data-sec="market" hidden>
+              ${row('行情数据源', '当前为演示数据，未连接真实网关', sel('feed', store.get('feed', 'simnow'), [['simnow', 'simnow 模拟'], ['ctp', 'CTP 实盘'], ['ib', 'IB 盈透']], '行情数据源'))}
+              ${row('推送频率', '报价刷新间隔，间隔越短消耗越大', sel('push', store.get('push', '1000'), [['500', '500 ms'], ['1000', '1 s'], ['3000', '3 s']], '推送频率'))}
+              ${row('断线自动重连', '网络恢复后自动重新订阅合约', sw('reconnect', '断线自动重连'))}
+              ${row('默认下单手数', '移动端下单抽屉的初始数量', `<div class="set-step">
+                <button data-step="-1" aria-label="减少手数">−</button><output id="defQty">${Number(store.get('defQty', '1')) || 1}</output><button data-step="1" aria-label="增加手数">+</button>
+              </div>`)}
+              ${row('下单二次确认', '提交前复核方向、价格与数量', sw('confirm', '下单二次确认'))}
+            </section>
+
+            <section class="set-sec" data-sec="about" hidden>
+              ${row('版本', 'vnpy Web 前端迁移预览', '<span class="pill pill--muted">v0.3.0-demo</span>')}
+              ${row('数据', '全部为本地模拟数据，不产生真实委托', '<span class="pill pill--warn">演示</span>')}
+              ${row('视觉语言', '参考 deepseek-ai/chat-demo 设计系统（MIT）', '<a class="set-link" href="https://github.com/deepseek-ai/chat-demo" target="_blank" rel="noreferrer">GitHub ↗</a>')}
+              ${row('本地设置', '清除主题、配色与各开关，恢复默认', '<button class="btn btn--ghost" id="resetSet" style="height:32px;padding:0 14px;font-size:12.5px">清除</button>')}
+            </section>
+
+          </div>
+        </div>`;
+    },
+  };
+
+  /* ---------------- 路由 ---------------- */
+  const pageEl = $('#page');
+  let current = 'market';
+  const scrollMap = {};
+  const parseHash = () => {
+    const id = (location.hash || '#/market').replace(/^#\/?/, '').split('/')[0];
+    return TITLES[id] ? id : 'market';
+  };
+  function setActive(id) {
+    $$('.navitem').forEach((a) => a.dataset.id === id ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  }
+
+  function render(id) {
+    if (scrollMap[current] !== undefined) scrollMap[current] = pageEl.scrollTop;
+    current = id;
+    pageEl.dataset.module = id;
+    pageEl.innerHTML = PAGES[id] ? PAGES[id]() : '';
+    $('#pageTitle').textContent = TITLES[id];
+    setActive(id);
+    closeDrawer();
+    chartCanvas = $('#chart') || null;
+    if (id === 'market') initMarket();
+    if (id === 'settings') initSettings();
+    if (id === 'backtest') $$('#runBt, #runBt2').forEach((b) => b && b.addEventListener('click', () => toast('回测任务已提交（演示）')));
+    pageEl.scrollTop = scrollMap[id] || 0;
+  }
+
+  /* ---------------- 行情页初始化 ---------------- */
+  function initMarket() {
+    drawChart();
+    const isMobile = window.matchMedia('(max-width: 899px)').matches;
+    const dockBody = $('#dockBody');
+    const panelBody = $('#panelBody');
+    const bookDesktop = $('#bookDesktop');
+
+    if (bookDesktop) bookDesktop.innerHTML = bookHtml();
+    if (indexOfOrder() !== -1) { /* noop */ }
+    if (dockBody) dockBody.innerHTML = ORDERS.length ? ordersHtml() : '<div class="t-empty">暂无委托</div>';
+    if (panelBody) panelBody.innerHTML = panelHtml(isMobile ? 'book' : 'orders');
+
+    // 托盘 tab（移动端）
+    $$('[data-tab]').forEach((t) => t.addEventListener('click', () => {
+      $$('[data-tab]').forEach((x) => x.setAttribute('aria-selected', 'false'));
+      t.setAttribute('aria-selected', 'true');
+      if (panelBody) panelBody.innerHTML = panelHtml(t.dataset.tab);
+    }));
+    // 底部 dock tab（桌面端）
+    $$('[data-dock]').forEach((t) => t.addEventListener('click', () => {
+      $$('[data-dock]').forEach((x) => x.setAttribute('aria-selected', 'false'));
+      t.setAttribute('aria-selected', 'true');
+      const k = t.dataset.dock;
+      if (dockBody) dockBody.innerHTML = k === 'orders' ? ordersHtml() : k === 'positions' ? positionsHtml() : tradesHtml();
+    }));
+    // 周期
+    $$('.t-tf button').forEach((b) => b.addEventListener('click', () => {
+      $$('.t-tf button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      state.viewBars = bars.slice(-Number(b.dataset.tf));
+      drawChart();
+    }));
+
+    // 桌面内联下单
+    const dSide = (side) => {
+      state.side = side;
+      $$('.t-order__seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.side === side)));
+      const btn = $('#dSubmit');
+      if (btn) { btn.dataset.side = side; btn.textContent = (side === 'buy' ? '买入开仓' : '卖出开仓') + ' rb2601'; }
+    };
+    $$('.t-order__seg button').forEach((b) => b.addEventListener('click', () => dSide(b.dataset.side)));
+    $$('[data-dstep]').forEach((b) => b.addEventListener('click', () => {
+      const input = b.dataset.dstep === 'price' ? $('#dPrice') : $('#dQty');
+      input.value = Math.max(1, Number(input.value) + Number(b.dataset.dir));
+      dCalc();
+    }));
+    $$('[data-dpct]').forEach((b) => b.addEventListener('click', () => {
+      $$('[data-dpct]').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+      b.setAttribute('aria-pressed', 'true');
+      $('#dQty').value = Math.max(1, Math.round(Number(b.dataset.dpct) / 100 * 40));
+      dCalc();
+    }));
+    $$('#dPrice, #dQty').forEach((i) => i && i.addEventListener('input', dCalc));
+    const dSubmit = $('#dSubmit');
+    if (dSubmit) dSubmit.addEventListener('click', () => {
+      addOrder(Number($('#dPrice').value), Number($('#dQty').value));
+      toast(`${state.side === 'buy' ? '买入' : '卖出'} ${$('#dQty').value} 手已提交（演示）`);
+    });
+    dCalc(); dSide(state.side);
+
+    // 移动端动作栏 → 抽屉（只绑定动作栏，避免抽屉自身的 data-open 状态被误选中）
+    $$('.t-actionbar [data-open]').forEach((b) => b.addEventListener('click', () => openSheet(b.dataset.open)));
+  }
+  function indexOfOrder() { return 0; }
+  function dCalc() {
+    const p = Number($('#dPrice')?.value) || 0;
+    const q = Number($('#dQty')?.value) || 0;
+    const amount = p * q * 10;
+    if ($('#dAmount')) $('#dAmount').textContent = fmt(amount, 2);
+    if ($('#dMargin')) $('#dMargin').textContent = fmt(amount * 0.13, 2);
+  }
+
+  function addOrder(price, qty) {
+    ORDERS = [{
+      t: new Date().toTimeString().slice(0, 5), sym: 'rb2601',
+      side: state.side === 'buy' ? '买' : '卖', oc: '开仓',
+      px: price, qty, filled: 0, st: '挂单中', live: true,
+    }, ...ORDERS];
+    const d = $('#dockBody'); if (d) d.innerHTML = ordersHtml();
+    const n = $('#nOrders'); if (n) n.textContent = ORDERS.length;
+    const nm = $('#nOrdersM'); if (nm) nm.textContent = ORDERS.length;
+  }
+
+  /* ---------------- 抽屉 ---------------- */
+  const rail = $('#rail'), scrim = $('#scrim'), menuBtn = $('#menuBtn'), app = $('#app');
+  function openDrawer() {
+    rail.dataset.open = 'true'; scrim.dataset.open = 'true';
+    menuBtn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+    const first = rail.querySelector('.navitem');
+    if (first) first.focus({ preventScroll: true });
+  }
+  function closeDrawer() {
+    if (rail.dataset.open !== 'true') return;
+    rail.dataset.open = 'false'; scrim.dataset.open = 'false';
+    menuBtn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+    menuBtn.focus({ preventScroll: true });
+  }
+  menuBtn.addEventListener('click', () => rail.dataset.open === 'true' ? closeDrawer() : openDrawer());
+  scrim.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeDrawer();
+    if (sheet.dataset.open === 'true') closeSheet();
+  });
+
+  const collapseBtn = $('#collapseBtn');
+  function setRail(mode) {
+    const collapsed = mode === 'collapsed';
+    app.dataset.rail = collapsed ? 'collapsed' : 'expanded';
+    store.set('rail', app.dataset.rail);
+    collapseBtn.title = collapsed ? '展开侧栏' : '折叠侧栏';
+    collapseBtn.setAttribute('aria-label', collapseBtn.title);
+    collapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    drawChart();
+  }
+  setRail(store.get('rail', 'expanded'));
+  collapseBtn.addEventListener('click', () => {
+    setRail(app.dataset.rail === 'collapsed' ? 'expanded' : 'collapsed');
+  });
+
+  /* ---------------- 移动端下单抽屉 ---------------- */
+  const sheet = $('#sheet'), tScrim = $('#tScrim');
+  const SNAP = { half: 62, full: 92 };
+  function setSide(side) {
+    state.side = side;
+    const label = side === 'buy' ? '买入开仓' : '卖出开仓';
+    $('#sheetTitle').textContent = label;
+    $$('.t-seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.side === side)));
+    const tc = $('#toConfirm'), sb = $('#submitOrder');
+    tc.dataset.side = side; sb.dataset.side = side;
+    tc.textContent = side === 'buy' ? '下一步 · 买入' : '下一步 · 卖出';
+    sb.textContent = side === 'buy' ? '确认买入' : '确认卖出';
+    const cs = $('#cSide'); cs.textContent = label; cs.className = side === 'buy' ? 'up' : 'down';
+    $('#cWarn').textContent = side === 'sell'
+      ? '卖出开仓将建立空头持仓，请留意保证金与强平风险。'
+      : '本单为模拟盘演示，不连接任何柜台。';
+  }
+  function sCalc() {
+    const p = Number($('#sPrice').value) || 0, q = Number($('#sQty').value) || 0;
+    const amount = p * q * 10;
+    $('#sAmount').textContent = fmt(amount, 2);
+    $('#sMargin').textContent = fmt(amount * 0.13, 2);
+    $('#cPrice').textContent = p;
+    $('#cQty').textContent = q + ' 手';
+    $('#cAmount').textContent = fmt(amount, 2);
+    $('#cMargin').textContent = fmt(amount * 0.13, 2);
+    $('#cFee').textContent = fmt(amount * 0.0001, 2);
+  }
+  function openSheet(side) {
+    if (!window.matchMedia('(max-width: 899px)').matches) return;
+    setSide(side);
+    sheet.dataset.open = 'true'; sheet.dataset.step = '0';
+    tScrim.dataset.open = 'true';
+    sheet.style.setProperty('--sheet-h', SNAP.half + '%');
+    $('#toConfirm').focus({ preventScroll: true });
+    sCalc();
+  }
+  function closeSheet() {
+    sheet.dataset.open = 'false'; tScrim.dataset.open = 'false';
+    sheet.style.setProperty('--sheet-h', '0%');
+  }
+  tScrim.addEventListener('click', closeSheet);
+  $('#sheetClose').addEventListener('click', closeSheet);
+  $('#sheetCancel').addEventListener('click', closeSheet);
+  $$('.t-seg button').forEach((b) => b.addEventListener('click', () => setSide(b.dataset.side)));
+  $$('.t-stepper [data-step]').forEach((b) => b.addEventListener('click', () => {
+    const input = b.dataset.step === 'price' ? $('#sPrice') : $('#sQty');
+    input.value = Math.max(1, Number(input.value) + Number(b.dataset.dir));
+    sCalc();
+  }));
+  $$('[data-pct]').forEach((b) => b.addEventListener('click', () => {
+    $$('[data-pct]').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    $('#sQty').value = Math.max(1, Math.round(Number(b.dataset.pct) / 100 * 40));
+    sCalc();
+  }));
+  $$('#sPrice, #sQty').forEach((i) => i.addEventListener('input', sCalc));
+  const vp = $('.t-sheet__viewport');
+  vp.addEventListener('scroll', () => { if (vp.scrollLeft !== 0) vp.scrollLeft = 0; });
+  $('#toConfirm').addEventListener('click', () => { sheet.dataset.step = '1'; vp.scrollLeft = 0; $('#step1').scrollTop = 0; });
+  $('#toEdit').addEventListener('click', () => { sheet.dataset.step = '0'; vp.scrollLeft = 0; });
+  $('#submitOrder').addEventListener('click', () => {
+    addOrder(Number($('#sPrice').value), Number($('#sQty').value));
+    closeSheet();
+    toast(`${state.side === 'buy' ? '买入' : '卖出'} ${$('#sQty').value} 手已提交（演示）`);
+  });
+  // 抓取条拖动
+  const grab = $('#grab');
+  let drag = null;
+  grab.addEventListener('pointerdown', (e) => {
+    drag = { y: e.clientY, h: sheet.getBoundingClientRect().height };
+    sheet.dataset.dragging = 'true'; grab.setPointerCapture(e.pointerId);
+  });
+  grab.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const appH = app.getBoundingClientRect().height;
+    const next = Math.max(appH * 0.25, Math.min(appH * 0.94, drag.h - (e.clientY - drag.y)));
+    sheet.style.setProperty('--sheet-h', next + 'px');
+  });
+  grab.addEventListener('pointerup', (e) => {
+    if (!drag) return;
+    const appH = app.getBoundingClientRect().height;
+    const h = sheet.getBoundingClientRect().height;
+    const dy = e.clientY - drag.y;
+    drag = null; sheet.dataset.dragging = 'false';
+    if (dy > 90 || h < appH * 0.35) return closeSheet();
+    sheet.style.setProperty('--sheet-h', (h > appH * 0.78 ? SNAP.full : SNAP.half) + '%');
+  });
+
+  /* ---------------- 设置页 ---------------- */
+  function initSettings() {
+    const nav = $('#setNav'), content = $('#setContent');
+    if (!nav || !content) return;
+
+    const showSec = (id, remember = true) => {
+      $$('[data-sec]', nav).forEach((b) => b.setAttribute('aria-current', String(b.dataset.sec === id)));
+      $$('.set-sec', content).forEach((sec) => { sec.hidden = sec.dataset.sec !== id; });
+      content.scrollTop = 0;
+      if (remember) store.set('setSec', id);
+    };
+    $$('[data-sec]', nav).forEach((b) => b.addEventListener('click', () => showSec(b.dataset.sec)));
+    showSec(store.get('setSec', 'general'), false);
+
+    $$('.set-theme', content).forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.mode)));
+    $$('.set-scheme', content).forEach((b) => b.addEventListener('click', () => applyScheme(b.dataset.scheme)));
+
+    $$('[data-switch]', content).forEach((b) => b.addEventListener('click', () => {
+      const next = b.getAttribute('aria-checked') !== 'true';
+      b.setAttribute('aria-checked', String(next));
+      if (b.dataset.switch === 'rail') {
+        setRail(next ? 'collapsed' : 'expanded');
+      } else {
+        store.set(b.dataset.switch, next ? '1' : '0');
+      }
+      toast(next ? '已开启' : '已关闭');
+    }));
+
+    $$('[data-select]', content).forEach((el) => el.addEventListener('change', () => {
+      store.set(el.dataset.select, el.value);
+      toast('已切换：' + el.options[el.selectedIndex].text);
+    }));
+
+    const qtyOut = $('#defQty');
+    let qty = Number(store.get('defQty', '1')) || 1;
+    $$('[data-step]', content).forEach((b) => b.addEventListener('click', () => {
+      qty = Math.max(1, Math.min(99, qty + Number(b.dataset.step)));
+      store.set('defQty', String(qty));
+      if (qtyOut) qtyOut.textContent = qty;
+    }));
+
+    const reset = $('#resetSet');
+    if (reset) reset.addEventListener('click', () => {
+      ['theme', 'scheme', 'setSec', 'thousand', 'compact', 'seconds', 'lang',
+       'feed', 'push', 'reconnect', 'confirm', 'defQty'].forEach((k) => {
+        try { localStorage.removeItem('app:' + k); } catch {}
+      });
+      toast('已恢复默认设置');
+      applyTheme('light');
+      applyScheme('cn');
+      render('settings');
+    });
+  }
+
+  /* ---------------- 主题 / 配色 ---------------- */
+  const mediaDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function refreshMarketColors() {
+    if (current !== 'market') return;
+    const b = $('#bookDesktop'); if (b) b.innerHTML = bookHtml();
+    const p = $('#panelBody'); if (p) p.innerHTML = panelHtml('book');
+  }
+
+  function applyTheme(mode) {
+    store.set('theme', mode);
+    const dark = mode === 'system' ? mediaDark.matches : mode === 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    $$('.set-theme').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    refreshMarketColors();
+    drawChart();
+  }
+
+  function applyScheme(v) {
+    store.set('scheme', v);
+    document.documentElement.dataset.priceScheme = v;
+    $$('.set-scheme').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scheme === v)));
+    refreshMarketColors();
+  }
+
+  mediaDark.addEventListener('change', () => {
+    if (store.get('theme', 'light') === 'system') applyTheme('system');
+  });
+
+  /* ---------------- toast ---------------- */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg; t.dataset.show = 'true';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.dataset.show = 'false'; }, 1800);
+  }
+
+  /* ---------------- 视口高度 ---------------- */
+  // vivo / 夸克等浏览器的 100dvh 不含地址栏，底部面板会被压到工具栏下面；
+  // 以 visualViewport（真实可见区域）为准写进 --app-h，图表再据此重绘。
+  let appHFrame = 0, lastAppH = 0;
+  function syncAppHeight() {
+    const el = document.activeElement;
+    // 软键盘弹出时 visualViewport 会缩小，此时保持外壳高度不变，避免整页塌缩
+    if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+    const vv = window.visualViewport;
+    const zoomed = !!(vv && vv.scale > 1.02);
+    // 被强制缩放时 vv.height 是「可见区 ÷ 缩放比」，跟着用会让外壳塌缩、底下露出空白
+    const h = zoomed
+      ? (lastAppH || Math.round(window.innerHeight || 0))
+      : Math.round((vv && vv.height) || window.innerHeight || 0);
+    if (!h) return;
+    if (!zoomed) lastAppH = h;
+    document.documentElement.style.setProperty('--app-h', h + 'px');
+    cancelAnimationFrame(appHFrame);
+    appHFrame = requestAnimationFrame(() => drawChart());
+  }
+  syncAppHeight();
+  window.addEventListener('resize', syncAppHeight);
+  window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 160));
+  document.addEventListener('focusout', () => setTimeout(syncAppHeight, 80));
+  // iOS Safari / 部分 WebView 仍会派发 gesture 事件
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) =>
+    document.addEventListener(t, (e) => e.preventDefault(), { passive: false }));
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncAppHeight);
+    window.visualViewport.addEventListener('scroll', syncAppHeight);
+  }
+
+  /* ---------------- 启动 ---------------- */
+  const bootMode = store.get('theme', 'light');
+  document.documentElement.dataset.theme =
+    (bootMode === 'system' ? mediaDark.matches : bootMode === 'dark') ? 'dark' : 'light';
+  document.documentElement.dataset.priceScheme = store.get('scheme', 'cn');
+
+  window.addEventListener('hashchange', () => render(parseHash()));
+  window.addEventListener('resize', () => { if (window.matchMedia('(max-width: 899px)').matches) closeDrawer(); drawChart(); });
+
+  setInterval(() => {
+    quote.last = Math.max(3380, Math.min(3470, quote.last + (rnd() > .5 ? 1 : -1)));
+    if (current !== 'market') return;
+    const d = quote.last - quote.prevClose;
+    const last = $('#qLast'), chg = $('#qChg'), pct = $('#qPct');
+    if (!last) return;
+    const cls = d > 0 ? 'up' : d < 0 ? 'down' : '';
+    [last, chg, pct].forEach((el) => { el.classList.remove('up', 'down'); if (cls) el.classList.add(cls); });
+    last.textContent = quote.last;
+    chg.textContent = (d > 0 ? '+' : '') + d;
+    pct.textContent = (d > 0 ? '+' : '') + (d / quote.prevClose * 100).toFixed(2) + '%';
+    drawChart();
+  }, 1800);
+
+  render(parseHash());
+})();
+</script>
+</body>
+</html>

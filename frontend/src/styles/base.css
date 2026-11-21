@@ -1,0 +1,74 @@
+/**
+ * 基础样式：reset、字体、焦点环、滚动与动效降级。
+ *
+ * 只放全局且与业务无关的规则；应用外壳、页面与组件样式各自独立。
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  background: var(--surface-canvas);
+}
+
+/*
+ * 外壳占满视口、整页不滚动：滚动只发生在内容区，
+ * 侧栏、顶栏与抽屉因此不会随页面滚走。
+ */
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#root {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

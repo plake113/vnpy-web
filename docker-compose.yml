@@ -1,0 +1,62 @@
+name: vnpy-rebuild
+
+services:
+  # ---------------------------------------------------------------- 数据库
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vnpy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnpy_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vnpy_rebuild}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vnpy} -d ${POSTGRES_DB:-vnpy_rebuild}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- 后端
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: dev
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vnpy}:${POSTGRES_PASSWORD:-vnpy_dev_password}@db:5432/${POSTGRES_DB:-vnpy_rebuild}
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- 前端
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
