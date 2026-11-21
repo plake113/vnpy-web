@@ -160,3 +160,17 @@ docker compose up --build                    # 前端 http://localhost:8080
 7. 运维与交付：运行日志/操作记录、任务队列、CI/CD、生产部署。
 
 具体模块的落地步骤与占位模块替换方法见 [README.md](README.md#新增一个业务模块)。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in `plake113/vnpy-web`; use the `gh` CLI. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical triage roles keep their default label strings. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+single-context: one root `GLOSSARY.md` shared by the whole repo, ADRs in `docs/adr/`. See [docs/agents/domain.md](docs/agents/domain.md).
